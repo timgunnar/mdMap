@@ -175,9 +175,9 @@ func cmdInit(args []string) {
 - **status**: Document status. Use consistent values across the project — look at existing documents for convention.
 - **tags**: Free-form tags. Reuse existing tags for consistency.
 - **links**: Navigation hints found in the document body ("See also", "For details see", "Supersedes", etc.). Each link has a target path and a natural-language reason.
-- **triggers**: When should someone read this document? Each trigger is one sentence describing a scenario.
-- **maintains**: When should this document be updated? Each maintain is one sentence describing a maintenance trigger.
-- **retires**: When can this document be safely deprecated? Each retire is one sentence describing a retirement condition.
+- **triggers**: When should someone read this document? Used for find --trigger queries, which match by substring. Include multiple phrasings covering different ways users might express the same intent. Cover common synonyms and keywords that people who need this document would naturally search for. Example: for a publishing guide, include "publishing a tool", "npm publish", "releasing to GitHub", "shipping a release" — not just one phrasing.
+- **maintains**: When should this document be updated? Same substring-matching principle as triggers. Include diverse keywords. Each maintain is one sentence describing a maintenance trigger.
+- **retires**: When can this document be safely deprecated? Same substring-matching principle. Each retire is one sentence describing a retirement condition.
 
 ## Project Convention
 

@@ -50,6 +50,8 @@ mdmap find --retires "stopped CLI development"  # "what can I archive now?"
 mdmap find --type checklist --tag "publish"     # filtered search
 ```
 
+Trigger matching is substring-based — your LLM translates user intent into short keywords. A well-written trigger entry covers multiple phrasings (e.g., "publishing a tool", "npm publish", "releasing to GitHub"), so common keywords match regardless of how the user phrases the request. See SKILL.md for the agent-facing guide on how to formulate queries.
+
 ## What makes it different
 
 **It indexes constraints, not keywords.** A document already tells you when to read it — "if you're publishing a tool, see this checklist." The problem is you can't see that instruction without opening the file. mdMap extracts those instructions and makes them queryable.

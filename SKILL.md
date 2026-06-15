@@ -32,6 +32,24 @@ Someone ran `mdmap init` to create the initial index. Then an LLM (possibly a pr
 
 The index lives in `mdMap.json`. Maintenance instructions live in `SCHEMA.md`. You should never read the full `mdMap.json` into context — always query it through the CLI.
 
+## How trigger matching works
+
+`--trigger`, `--maintains`, and `--retires` use **substring matching** against the text stored in the index. They are not semantic — they do not understand synonyms or paraphrasing on their own.
+
+**Your job is to translate the user's intent into short, high-probability keywords.** For example, when a user says "help me publish this to GitHub" or "I want to push a release":
+
+```bash
+# ✅ Good — extract the core keyword and try a few variations
+mdmap find --trigger "publish"
+mdmap find --trigger "release"
+mdmap find --trigger "github"
+
+# ❌ Bad — using the full user sentence as-is
+mdmap find --trigger "help me publish this to GitHub"
+```
+
+If the first query returns nothing, try one or two synonyms before giving up. The trigger text in the index should have been written with diverse keywords by the LLM that filled it — so short, common keywords usually match.
+
 ## Commands you will use
 
 ### Finding documents
