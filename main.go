@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 )
@@ -195,7 +197,7 @@ func cmdFind(args []string) {
 	trigger := flags.String("trigger", "", "find by read trigger")
 	maintains := flags.String("maintains", "", "find by update trigger")
 	retires := flags.String("retires", "", "find by retire trigger")
-	search := flags.String("search", "", "fuzzy match across title, summary, triggers, maintains, retires, tags")
+	search := flags.String("search", "", "BM25 ranked search across all text fields")
 	docType := flags.String("type", "", "filter by document type")
 	status := flags.String("status", "", "filter by document status")
 	tag := flags.String("tag", "", "filter by tag")
@@ -227,11 +229,25 @@ func cmdFind(args []string) {
 		return
 	}
 
+	if *search != "" {
+		scored := bm25Search(m.Docs, *search)
+		if *jsonOut {
+			data, _ := json.MarshalIndent(scored, "", "  ")
+			fmt.Println(string(data))
+			return
+		}
+		top := 20
+		if len(scored) < top {
+			top = len(scored)
+		}
+		for i := 0; i < top; i++ {
+			fmt.Printf("%.2f  %s\n", scored[i].Score, scored[i].Path)
+		}
+		return
+	}
+
 	var results []string
 	for path, doc := range m.Docs {
-		if *search != "" && !matchesSearch(doc, *search) {
-			continue
-		}
 		if *trigger != "" && !containsAny(doc.Triggers, *trigger) {
 			continue
 		}
@@ -327,43 +343,132 @@ func hasTag(tags []string, target string) bool {
 	return false
 }
 
-func matchesSearch(doc *Doc, term string) bool {
-	words := strings.Fields(strings.ToLower(term))
+type scoredDoc struct {
+	Path  string  `json:"path"`
+	Score float64 `json:"score"`
+}
 
-	check := func(s string) bool {
-		s = strings.ToLower(s)
-		for _, w := range words {
-			if strings.Contains(s, w) {
-				return true
+const (
+	bm25k1 = 1.2
+	bm25b  = 0.75
+)
+
+type fieldWeight struct {
+	text   string
+	weight float64
+}
+
+func bm25Search(docs map[string]*Doc, query string) []scoredDoc {
+	query = strings.ToLower(strings.TrimSpace(query))
+	if query == "" {
+		return nil
+	}
+	queryWords := strings.Fields(query)
+
+	docFields := make(map[string][]fieldWeight)
+
+	for path, doc := range docs {
+		var fields []fieldWeight
+		add := func(s string, w float64) {
+			s = strings.ToLower(strings.TrimSpace(s))
+			if s == "" {
+				return
+			}
+			fields = append(fields, fieldWeight{text: s, weight: w})
+		}
+		add(doc.Title, 3.0)
+		add(doc.Summary, 1.5)
+		add(doc.Positioning, 1.0)
+		for _, t := range doc.Triggers {
+			add(t, 2.0)
+		}
+		for _, t := range doc.Tags {
+			add(t, 2.0)
+		}
+		for _, m := range doc.Maintains {
+			add(m, 1.0)
+		}
+		for _, r := range doc.Retires {
+			add(r, 1.0)
+		}
+		docFields[path] = fields
+	}
+
+	N := float64(len(docs))
+	if N == 0 {
+		return nil
+	}
+
+	df := make(map[string]int)
+	for _, fields := range docFields {
+		seen := make(map[string]bool)
+		for _, f := range fields {
+			for _, w := range strings.Fields(f.text) {
+				if !seen[w] {
+					seen[w] = true
+					df[w]++
+				}
 			}
 		}
-		return false
 	}
 
-	if check(doc.Title) || check(doc.Summary) || check(doc.Positioning) {
-		return true
+	var docLengths []float64
+	pathList := make([]string, 0, len(docs))
+	for path, fields := range docFields {
+		var length float64
+		for _, f := range fields {
+			length += float64(len(strings.Fields(f.text))) * f.weight
+		}
+		docLengths = append(docLengths, length)
+		pathList = append(pathList, path)
 	}
-	for _, t := range doc.Triggers {
-		if check(t) {
-			return true
+
+	var avgdl float64
+	for _, l := range docLengths {
+		avgdl += l
+	}
+	avgdl /= N
+
+	var results []scoredDoc
+	for i, path := range pathList {
+		var score float64
+		for _, qw := range queryWords {
+			n := df[qw]
+			if n == 0 {
+				continue
+			}
+			idf := math.Log((N-float64(n)+0.5)/(float64(n)+0.5) + 1.0)
+
+			var tf float64
+			for _, f := range docFields[path] {
+				for _, w := range strings.Fields(f.text) {
+					if w == qw {
+						tf += 1.0 * f.weight
+					}
+				}
+			}
+			if tf == 0 {
+				continue
+			}
+
+			dl := docLengths[i]
+			numerator := tf * (bm25k1 + 1)
+			denominator := tf + bm25k1*(1-bm25b+bm25b*dl/avgdl)
+			score += idf * numerator / denominator
+		}
+		if score > 0 {
+			results = append(results, scoredDoc{Path: path, Score: math.Round(score*100) / 100})
 		}
 	}
-	for _, m := range doc.Maintains {
-		if check(m) {
-			return true
+
+	sort.Slice(results, func(i, j int) bool {
+		if results[i].Score != results[j].Score {
+			return results[i].Score > results[j].Score
 		}
-	}
-	for _, r := range doc.Retires {
-		if check(r) {
-			return true
-		}
-	}
-	for _, t := range doc.Tags {
-		if check(t) {
-			return true
-		}
-	}
-	return false
+		return results[i].Path < results[j].Path
+	})
+
+	return results
 }
 
 func cmdValidate(args []string) {

@@ -44,14 +44,14 @@ mdmap init ./docs
 #  read the doc, extract type/summary/triggers/links, write back."
 
 # After that, you never scan directories again.
-mdmap find --search "publishing a tool"          # search all fields — use this first
+mdmap find --search "publishing a tool"          # BM25 ranked — use this first
 mdmap find --trigger "publishing a tool"         # narrower: read-trigger only
 mdmap find --maintains "github changed auth"     # narrower: update-trigger only
 mdmap find --retires "stopped CLI development"  # "what can I archive now?"
 mdmap find --type checklist --tag "publish"     # filtered search
 ```
 
-`--search` does substring matching across all text fields — title, summary, positioning, triggers, maintains, retires, and tags. Just throw the user's intent at it. The more text you give it, the more substrings it has to match against.
+`--search` scores every document with BM25 — an industry-standard ranking algorithm that rewards keyword frequency while penalizing common words. Higher score = more relevant. Output is sorted, so the top result is the one to open first.
 
 ## What makes it different
 
@@ -79,7 +79,7 @@ Trigger-based match:    ~200B
 |:--|:--|
 | `init <dir>` | Scan directory, create mdMap.json + SCHEMA.md |
 | `find <path>` | Exact document lookup (O(1)) |
-| `find --search <text>` | Match across all text fields — use this first |
+| `find --search <text>` | BM25 ranked search across all fields — use this first |
 | `find --trigger <text>` | "What should I read for this task?" |
 | `find --maintains <text>` | "What needs updating after this change?" |
 | `find --retires <text>` | "What can be safely archived?" |

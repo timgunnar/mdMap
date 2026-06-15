@@ -34,18 +34,19 @@ The index lives in `mdMap.json`. Maintenance instructions live in `SCHEMA.md`. Y
 
 ## How to find the right document
 
-**Use `--search` as your primary query method.** It does substring matching across ALL text fields — title, summary, positioning, triggers, maintains, retires, and tags — in a single pass. Just throw the user's intent at it:
+**Use `--search` as your primary query method.** It scores every document with **BM25** — an industry-standard ranking algorithm that rewards keyword frequency (TF) while penalizing words that appear everywhere (IDF). It searches across all text fields — title, summary, positioning, triggers, maintains, retires, and tags — in a single pass.
 
 ```bash
-# ✅ Primary method — search all fields at once
+# Primary — ranked by relevance, highest first
 mdmap find --search "publish"
-mdmap find --search "help me publish this to GitHub"
-mdmap find --search "推代码"
+# 4.23  publishing_guide.md
+# 2.27  testing_guide.md
+# 0.52  architecture.md
 ```
 
-The more text you give `--search`, the more substrings it has to match against. A user saying "I need to push code and release to GitHub" contains "push", "release", and "github" — any of those matching a field in the index will return the document. **You do not need to manually extract keywords or retry with synonyms.**
+**Just throw the user's intent at it.** BM25 extracts individual words from the query and scores each document independently. The output is sorted by score — the top result is the one you should open first. A document that mentions "publish" 5 times in its triggers and tags will rank far above one that mentions it once in passing.
 
-Use `--trigger`, `--maintains`, and `--retires` only when you need the narrower semantics (e.g., "show me documents that should be *updated* after this change" — that concept only exists in the `maintains` field).
+Use `--trigger`, `--maintains`, and `--retires` only when you need narrower semantics (e.g., "show me documents that should be *updated* after this change" — that concept only exists in the `maintains` field).
 
 ## Commands you will use
 

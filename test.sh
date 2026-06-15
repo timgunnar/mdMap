@@ -155,6 +155,22 @@ result=$(rundir "$BIN" find --tag publish 2>&1)
 if echo "$result" | grep -q "publish_checklist.md"; then pass "find --tag publish works"; else fail "find --tag publish: $result"; fi
 
 # ============================================================
+# Test: find --search (BM25 scoring)
+# ============================================================
+echo -e "\n${CYAN}=== 5b. find --search (BM25) ===${NC}"
+
+result=$(rundir "$BIN" find --search "publishing" 2>&1)
+if echo "$result" | grep -q "publish_checklist.md"; then pass "BM25 search for 'publishing' hits checklist"; else fail "BM25 missed: $result"; fi
+
+result=$(rundir "$BIN" find --search "publishing" 2>&1)
+if echo "$result" | grep -qE '^[0-9]+\.[0-9]+  '; then pass "BM25 output has score prefix"; else fail "BM25 no scores: $result"; fi
+
+json_result=$(rundir "$BIN" find --search "publishing a tool" --json 2>/dev/null)
+if echo "$json_result" | python3 -c "import sys,json; d=json.load(sys.stdin); assert isinstance(d,list) and len(d)>0 and 'score' in d[0]" 2>/dev/null; then
+  pass "BM25 --json returns scored array"
+else fail "BM25 --json: $json_result"; fi
+
+# ============================================================
 # Test: validate — clean
 # ============================================================
 echo -e "\n${CYAN}=== 6. validate — clean ===${NC}"
