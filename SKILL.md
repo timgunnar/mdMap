@@ -34,32 +34,33 @@ The index lives in `mdMap.json`. Maintenance instructions live in `SCHEMA.md`. Y
 
 ## How to find the right document
 
-mdMap splits search into two steps: **narrow the space** + **read summaries**. Together they pinpoint a single document.
+mdMap models search as **SQL conditional queries** — exact fields use `=` filtering, semantic fields use `LIKE` substring matching, and your semantic understanding makes the final call.
 
 ```
-Step 1: --type narrows the search space (strong signal, deterministic)
-        You know what you're doing → you know what type of doc you need
-        "publish a project" → need constraint rules → --type rule
-        "look up history" → need reference docs → --type resource
-
-Step 2: --search does BM25 scoring within that narrowed space
-        Result set shrinks to 2-5 documents
-        Read summaries → use your own semantic understanding to pick
+--type rule --status active --search "project a"
+   type=rule      status=active      title/summary/positioning contains "project a"
 ```
 
-**Core principle: always add `--type`.** Without it, you're back to full-text search and noise returns. With it, the result set is naturally small — rule documents are few, resource documents are few. Your semantic understanding on 2-5 summary lines beats any algorithm on a 50-line list.
+**Two-layer filtering**:
+
+| field type | matching | example |
+|-----------|----------|---------|
+| exact fields | type, status, tag exact match | `--type rule`, `--status active`, `--tag publish` |
+| semantic fields | title, summary, positioning substring | `--search "project a publish"` |
+
+**Core strategy: narrow with type, then read summaries.**
 
 ```bash
 # User says: "I need to publish project-a"
 # You reason: they need publishing rules → --type rule
-mdmap find --search "project a publish" --type rule
-# 0.86  [rule]  project_a_publish.md  — Publishing rules for project-a: GitHub releases, vX.Y.Z tags
-# 0.42  [rule]  project_b_publish.md  — Publishing rules for project-b: npm publish
+mdmap find --type rule --search "project a"
+# [rule]  project_a_publish.md  — Publishing rules for project-a: GitHub releases, vX.Y.Z tags
+# [rule]  project_b_publish.md  — Publishing rules for project-b: npm publish
 
 # Two results. First summary matches → open project_a_publish.md. Done.
 ```
 
-If no summary is an obvious match, try one or two keyword variations (e.g., `--search "project-a release" --type rule`) rather than opening every result. The summary already tells you what each document covers.
+**No ranking, no scoring needed.** After conditional filtering, you get 2-5 results. Your own semantic understanding on 2-5 summary lines beats any algorithm. If the first summary doesn't match, check the second — you'll find the right one within 5 lines at most. Same as SQL: WHERE narrows the result set, your brain does the final filter.
 
 ## Document type system
 
@@ -74,9 +75,9 @@ Search output shows the type tag inline — you know a document's role at a glan
 
 ```bash
 mdmap find --search "auth"
-# 3.12  [rule]        security_policy.md    — API authentication security policy — must comply
-# 2.45  [checklist]   auth_migration.md     — Authentication migration checklist
-# 1.80  [resource]    auth_history.md       — History of OAuth protocol evolution
+# [rule]        security_policy.md    — API authentication security policy — must comply
+# [checklist]   auth_migration.md     — Authentication migration checklist
+# [resource]    auth_history.md       — History of OAuth protocol evolution
 ```
 
 When you see `[rule]` → open it first. You must follow its constraints. When you see `[resource]` → open it only if you need reference information.
@@ -98,9 +99,9 @@ mdMap predefines four core statuses that you must use consistently:
 
 ```bash
 mdmap find --search "auth migration"
-# 3.12  [checklist]   auth_migration_v3.md   — Current auth migration checklist (v3)
-# 1.80  [checklist]  [deprecated]  auth_migration_v2.md  — Old auth migration checklist (v2)
-# 0.90  [guide]      [draft]  auth_migration_v4.md  — New auth migration guide (drafting)
+# [checklist]   auth_migration_v3.md   — Current auth migration checklist (v3)
+# [checklist]  [deprecated]  auth_migration_v2.md  — Old auth migration checklist (v2)
+# [guide]      [draft]  auth_migration_v4.md  — New auth migration guide (drafting)
 ```
 
 **When indexing:** current authoritative doc → `active`. Replaced → `deprecated` and fill retires. Work in progress → `draft`. Historical record → `archived`.
@@ -110,8 +111,8 @@ mdmap find --search "auth migration"
 ### Finding documents
 
 ```bash
-# Primary — search all fields at once (use this first)
-mdmap find --search "publishing"
+# Primary — SQL-style conditional query (exact type + semantic search)
+mdmap find --type rule --search "publishing"
 
 # Exact lookup (O(1)) — you know the path
 mdmap find docs/architecture/auth_v3.md

@@ -44,14 +44,15 @@ mdmap init ./docs
 #  读取全文，提取 type/summary/triggers/links，写回。"
 
 # 之后，你再也不扫目录。
-mdmap find --search "发布工具"                    # BM25 评分排序——先用这个
+mdmap find --search "发布工具"                    # 语义字段模糊匹配
+mdmap find --type rule --search "project a"     # 精确 type + 语义搜索
 mdmap find --trigger "发布工具"                   # 精确：只看读取触发
 mdmap find --maintains "github 改了认证"          # 精确：只看更新触发
 mdmap find --retires "停止了 CLI 开发"            # "什么可以归档了？"
 mdmap find --type checklist --tag "发布"          # 过滤搜索
 ```
 
-`--search` 用 BM25 对每篇文档打分——奖励关键词频率，惩罚通用词。分数越高越相关。按分数降序输出，排第一的就是最该打开的。
+`--search` 在语义字段（标题/摘要/定位）中做子串匹配。`--type`、`--status`、`--tag` 做精确匹配。组合使用如 SQL 条件查询：先缩小到规则文档，再模糊搜项目名，返回 2-5 条——Agent 读摘要即可判断，无需打开文档。
 
 ## 不一样在哪
 
@@ -79,7 +80,7 @@ mdmap find --type checklist --tag "发布"          # 过滤搜索
 |:--|:--|
 | `init <dir>` | 扫描目录，创建 mdMap.json + SCHEMA.md |
 | `find <path>` | 精确查找（O(1)） |
-| `find --search <文本>` | BM25 跨全字段评分排序——先用这个 |
+| `find --search <文本>` | 语义字段模糊匹配（标题/摘要/定位） |
 | `find --trigger <文本>` | "这个任务该读什么？" |
 | `find --maintains <文本>` | "这次变更后什么该更新？" |
 | `find --retires <文本>` | "什么可以安全归档？" |

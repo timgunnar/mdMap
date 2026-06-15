@@ -155,20 +155,28 @@ result=$(rundir "$BIN" find --tag publish 2>&1)
 if echo "$result" | grep -q "publish_checklist.md"; then pass "find --tag publish works"; else fail "find --tag publish: $result"; fi
 
 # ============================================================
-# Test: find --search (BM25 scoring)
+# Test: find --search (substring + combo)
 # ============================================================
-echo -e "\n${CYAN}=== 5b. find --search (BM25) ===${NC}"
+echo -e "\n${CYAN}=== 5b. find --search (substring filter) ===${NC}"
 
 result=$(rundir "$BIN" find --search "publishing" 2>&1)
-if echo "$result" | grep -q "publish_checklist.md"; then pass "BM25 search for 'publishing' hits checklist"; else fail "BM25 missed: $result"; fi
+if echo "$result" | grep -q "publish_checklist.md"; then pass "--search 'publishing' hits checklist"; else fail "--search missed: $result"; fi
 
 result=$(rundir "$BIN" find --search "publishing" 2>&1)
-if echo "$result" | grep -qE '^[0-9]+\.[0-9]+  '; then pass "BM25 output has score prefix"; else fail "BM25 no scores: $result"; fi
+if echo "$result" | grep -q " — "; then pass "--search output has summary"; else fail "--search no summary: $result"; fi
 
-json_result=$(rundir "$BIN" find --search "publishing a tool" --json 2>/dev/null)
-if echo "$json_result" | python3 -c "import sys,json; d=json.load(sys.stdin); assert isinstance(d,list) and len(d)>0 and 'score' in d[0]" 2>/dev/null; then
-  pass "BM25 --json returns scored array"
-else fail "BM25 --json: $json_result"; fi
+result=$(rundir "$BIN" find --search "architecture" 2>&1)
+if echo "$result" | grep -q "architecture.md"; then pass "--search 'architecture' hits architecture.md"; else fail "--search missed arch: $result"; fi
+
+result=$(rundir "$BIN" find --type checklist --search "publishing" 2>&1)
+if [ "$(echo "$result" | grep -c 'publish_checklist.md')" -ge 1 ]; then
+  pass "--type checklist --search 'publishing' works"
+else fail "--type --search combo: $result"; fi
+
+json_result=$(rundir "$BIN" find --search "publishing" --json 2>/dev/null)
+if echo "$json_result" | python3 -c "import sys,json; d=json.load(sys.stdin); assert isinstance(d,list) and len(d)>0 and 'summary' in d[0]" 2>/dev/null; then
+  pass "--search --json returns array with summary"
+else fail "--search --json: $json_result"; fi
 
 # ============================================================
 # Test: validate — clean
