@@ -86,14 +86,15 @@ mdmap find --search "auth"
 
 ## 文档状态系统
 
-mdMap 预定义了四种**你必须始终使用的核心 status**：
+mdMap 预定义了五种**你必须始终使用的核心 status**：
 
 | status | 含义 | Agent 行为 |
 |--------|------|-----------|
 | **`active`** | 当前权威版本 | **直接使用**。这是你应该读和遵守的版本 |
-| **`deprecated`** | 已被新版本替代，或不再适用 | **不要作为主要参考**。搜索输出中会标 `[deprecated]` 警告。deprecated 文档应该有 `superseded_by` 链接或其 `retires` 字段说明退役原因 |
+| **`deprecated`** | 已被新版本替代，或不再适用 | **不要作为主要参考**。搜索输出中会标 `[deprecated]` 警告 |
 | **`draft`** | 草稿，内容可能变化 | **仅供参考方向**，不能作为最终依据 |
 | **`archived`** | 历史记录，仅作留存 | **不要主动打开**。除非用户明确要求查看历史 |
+| **`unread`** | 从未被索引——mdMap 只知道标题 | **第一次读到它时立即索引。** 见下方渐进式索引 |
 
 `active` 不在搜索输出中显示标签（默认状态，减少噪音）。非 active 状态会显式标注：
 
@@ -102,7 +103,31 @@ mdmap find --search "auth migration"
 # [checklist]   auth_migration_v3.md   — 当前认证迁移检查清单（v3）
 # [checklist]  [deprecated]  auth_migration_v2.md  — 旧版认证迁移检查清单（v2）
 # [guide]      [draft]  auth_migration_v4.md  — 新版认证迁移指南（起草中）
+# [unread]      novel_chapter_42.md  — 第四十二章
 ```
+
+## 渐进式索引
+
+mdMap 不是一次性建成。每次你读一篇文档，索引就变好一点。
+
+**`init` 只做最小量**：扫目录、提取标题、算哈希。≥50KB 的文档标 `unread`——只有标题进入索引，没有哈希、类型、摘要、触发器。零 API token 消耗。
+
+**你的任务**：当你因任何任务读了某一篇 `unread` 文档（不管通过什么方式，不限于 mdMap），读完后更新它的条目：
+
+```bash
+# 之前：文档是 [unread]，只有标题
+# 你因某个任务读了它：
+#   "这是一篇 60KB 的精灵族历史世界设定"
+# → 更新 mdMap.json：
+#   type → "resource"
+#   status → "archived"
+#   summary → "精灵族历史与文化世界设定参考"
+#   hash → md5sum 当前文件内容
+```
+
+**不要一次性批量索引全部文档。** 只索引你自然遇到的。一篇文档如果从来没有 Agent 需要读它，那它被索引也没有意义。当它真的被需要时，你就会读到它——顺便索引。
+
+这就是惰性加载：索引随 Agent 的实际工作有机增长。
 
 **在填充索引时**：当前生效的权威文档 → `active`。被替代的 → `deprecated` 并填写 retires。正在写的 → `draft`。历史留存 → `archived`。
 

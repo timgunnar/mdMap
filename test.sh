@@ -371,6 +371,38 @@ open('$DOCSDIR/architecture.md','w').write('# Architecture Overview\n\nThe syste
 "
 
 # ============================================================
+# Test: init — unread for large files
+# ============================================================
+echo -e "\n${CYAN}=== 14. init — unread status ===${NC}"
+
+UNREAD_DIR="$TESTDIR/unread_test"
+mkdir -p "$UNREAD_DIR"
+echo "# Small Rules" > "$UNREAD_DIR/small_rules.md"
+# create a 52KB file (hash=skip, status=unread)
+dd if=/dev/zero of="$UNREAD_DIR/big_novel.md" bs=1024 count=52 2>/dev/null
+echo "# Big Novel" > "$UNREAD_DIR/big_novel.md"
+dd if=/dev/zero bs=1024 count=51 >> "$UNREAD_DIR/big_novel.md" 2>/dev/null
+
+rundir "$BIN" init "$UNREAD_DIR" >/dev/null
+
+is_unread=$(python3 -c "import json; d=json.load(open('$UNREAD_DIR/mdMap.json')); doc=d['docs'].get('big_novel.md',{}); print(doc.get('status',''))")
+if [ "$is_unread" = "unread" ]; then pass "large file marked unread"; else fail "large file status: $is_unread (expected unread)"; fi
+
+hash_val=$(python3 -c "import json; d=json.load(open('$UNREAD_DIR/mdMap.json')); doc=d['docs'].get('big_novel.md',{}); print(doc.get('hash',''))")
+if [ "$hash_val" = "" ]; then pass "unread doc has empty hash"; else fail "unread doc has hash: $hash_val"; fi
+
+small_status=$(python3 -c "import json; d=json.load(open('$UNREAD_DIR/mdMap.json')); doc=d['docs'].get('small_rules.md',{}); print(doc.get('status',''))")
+if [ "$small_status" = "" ]; then pass "small file NOT marked unread"; else fail "small file has status: $small_status"; fi
+
+small_hash=$(python3 -c "import json; d=json.load(open('$UNREAD_DIR/mdMap.json')); doc=d['docs'].get('small_rules.md',{}); print(doc.get('hash','') != '')")
+if [ "$small_hash" = "True" ]; then pass "small file has hash"; else fail "small file missing hash"; fi
+
+result=$(rundir "$BIN" find --dir "$UNREAD_DIR" --status unread 2>&1)
+if echo "$result" | grep -q "big_novel.md"; then pass "find --status unread works"; else fail "find unread: $result"; fi
+
+rm -rf "$UNREAD_DIR"
+
+# ============================================================
 # Summary
 # ============================================================
 echo ""

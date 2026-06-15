@@ -86,14 +86,15 @@ When you see `[rule]` → open it first. You must follow its constraints. When y
 
 ## Document status system
 
-mdMap predefines four core statuses that you must use consistently:
+mdMap predefines five core statuses that you must use consistently:
 
 | status | meaning | agent behavior |
 |--------|---------|---------------|
 | **`active`** | current authoritative version | **Use directly.** This is the version you should read and follow |
-| **`deprecated`** | replaced or no longer applicable | **Do not use as primary reference.** Search output shows `[deprecated]` warning. A deprecated document should have a `superseded_by` link or a retirement reason in its `retires` field |
+| **`deprecated`** | replaced or no longer applicable | **Do not use as primary reference.** Search output shows `[deprecated]` warning |
 | **`draft`** | work in progress, content may change | **Consult for direction only.** Not final authority |
-| **`archived`** | historical record, kept for reference | **Do not open proactively.** Only open when the user explicitly asks to review history |
+| **`archived`** | historical record, kept for reference | **Do not open proactively.** Only when the user explicitly asks |
+| **`unread`** | never indexed — mdMap knows title only | **Index it when you first read it.** See progressive indexing below |
 
 `active` is not shown in search output (it's the default — no noise). Non-active statuses are labeled:
 
@@ -102,7 +103,31 @@ mdmap find --search "auth migration"
 # [checklist]   auth_migration_v3.md   — Current auth migration checklist (v3)
 # [checklist]  [deprecated]  auth_migration_v2.md  — Old auth migration checklist (v2)
 # [guide]      [draft]  auth_migration_v4.md  — New auth migration guide (drafting)
+# [unread]      novel_chapter_42.md  — Chapter 42
 ```
+
+## Progressive indexing
+
+mdMap is NOT a one-shot index. It improves every time you read a document.
+
+**`init` only does the minimum**: scan directory, extract titles, compute hashes. Documents ≥50KB are marked `unread` — they go into the index by title only. No hash, no type, no summary, no triggers. This costs zero API tokens.
+
+**Your job**: when you read an `unread` document (for any task, via any method — not just mdMap), update its entry afterward:
+
+```bash
+# Before: document is [unread], only title populated
+# After reading it for a task:
+#   "This is a 60KB world-building document about Elven history"
+# → update mdMap.json:
+#   type → "resource"
+#   status → "archived"
+#   summary → "Elven history and culture world-building reference"
+#   hash → md5sum of current file content
+```
+
+**Don't batch-index the entire project.** Index what you naturally encounter. An unread document has zero value in being indexed if no agent has ever needed it. When it IS needed, you'll read it — and index it then.
+
+This is the same as lazy-loading: the index grows organically as agents do real work.
 
 **When indexing:** current authoritative doc → `active`. Replaced → `deprecated` and fill retires. Work in progress → `draft`. Historical record → `archived`.
 

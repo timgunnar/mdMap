@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"crypto/md5"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -90,23 +92,30 @@ func saveMap(m *MapFile, rootDir string) error {
 	return os.WriteFile(filepath.Join(rootDir, "mdMap.json"), data, 0644)
 }
 
+const sizeThreshold = 51200
+
 func computeHash(path string) string {
-	data, err := os.ReadFile(path)
+	f, err := os.Open(path)
 	if err != nil {
 		return ""
 	}
-	return fmt.Sprintf("%x", md5.Sum(data))
+	defer f.Close()
+	h := md5.New()
+	io.Copy(h, f)
+	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
 var h1Pattern = regexp.MustCompile(`^#\s+(.+)$`)
 
 func extractTitle(path string) string {
-	data, err := os.ReadFile(path)
+	f, err := os.Open(path)
 	if err != nil {
 		return ""
 	}
-	for _, line := range strings.Split(string(data), "\n") {
-		m := h1Pattern.FindStringSubmatch(strings.TrimRight(line, "\r"))
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		m := h1Pattern.FindStringSubmatch(strings.TrimRight(scanner.Text(), "\r"))
 		if len(m) == 2 {
 			return strings.TrimSpace(m[1])
 		}
@@ -152,10 +161,16 @@ func cmdInit(args []string) {
 			return nil
 		}
 
-		m.Docs[relPath] = &Doc{
+		doc := &Doc{
 			Title: extractTitle(path),
-			Hash:  computeHash(path),
 		}
+		if info.Size() >= sizeThreshold {
+			doc.Status = "unread"
+			doc.Type = ""
+		} else {
+			doc.Hash = computeHash(path)
+		}
+		m.Docs[relPath] = doc
 		return nil
 	})
 
@@ -179,7 +194,7 @@ func cmdInit(args []string) {
 
 - **summary**: One-sentence summary (≤80 chars). Answers "what is this document about".
 - **positioning**: One-sentence positioning in the knowledge system. Answers "what role does this document play".
-- **status**: Document lifecycle state. Three statuses are defined by mdMap and must be used consistently:
+- **status**: Document lifecycle state. Five statuses are defined by mdMap and must be used consistently:
 
   **` + "`active`" + `** — the current, authoritative version. This is the document agents should read.
 
@@ -188,6 +203,8 @@ func cmdInit(args []string) {
   **` + "`draft`" + `** — work in progress. Content may change. Agents may consult for direction but should not treat it as final authority.
 
   **` + "`archived`" + `** — historical record, kept for reference only. Not part of the active knowledge graph. Agents should only open it when explicitly asked to review history.
+
+  **` + "`unread`" + `** — mdMap has never read this document's content (file ≥50KB at init time). The document is in the index by title only — no type, summary, triggers, or hash. When you first read this document for any task, update its status to ` + "`active`" + ` (or the correct lifecycle state), fill in ` + "`type`" + ` and ` + "`summary`" + `, and compute its ` + "`hash`" + `. This is progressive indexing — the index improves as agents read documents, not in one expensive pass.
 - **tags**: Free-form tags. Reuse existing tags for consistency.
 - **links**: Navigation hints found in the document body ("See also", "For details see", "Supersedes", etc.). Each link has a target path and a natural-language reason.
 - **triggers**: When should someone read this document? Used for find --trigger queries, which match by substring. Include multiple phrasings covering different ways users might express the same intent. Cover common synonyms and keywords that people who need this document would naturally search for. Example: for a publishing guide, include "publishing a tool", "npm publish", "releasing to GitHub", "shipping a release" — not just one phrasing.
@@ -200,7 +217,16 @@ func cmdInit(args []string) {
 `
 	os.WriteFile(schemaPath, []byte(schema), 0644)
 
+	unreadCount := 0
+	for _, doc := range m.Docs {
+		if doc.Status == "unread" {
+			unreadCount++
+		}
+	}
 	fmt.Printf("mdMap: initialized %d documents in %s\n", len(m.Docs), rootDir)
+	if unreadCount > 0 {
+		fmt.Printf("  %d unread (≥50KB) — will be indexed when first read\n", unreadCount)
+	}
 	fmt.Printf("  mdMap.json — document index\n")
 	fmt.Printf("  SCHEMA.md  — field reference for LLM maintenance\n")
 }
