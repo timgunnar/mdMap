@@ -241,7 +241,14 @@ func cmdFind(args []string) {
 			top = len(scored)
 		}
 		for i := 0; i < top; i++ {
-			fmt.Printf("%.2f  %s\n", scored[i].Score, scored[i].Path)
+			sd := scored[i]
+			if sd.Summary != "" {
+				fmt.Printf("%.2f  %s  — %s\n", sd.Score, sd.Path, sd.Summary)
+			} else if sd.Title != "" {
+				fmt.Printf("%.2f  %s  — %s\n", sd.Score, sd.Path, sd.Title)
+			} else {
+				fmt.Printf("%.2f  %s\n", sd.Score, sd.Path)
+			}
 		}
 		return
 	}
@@ -344,8 +351,10 @@ func hasTag(tags []string, target string) bool {
 }
 
 type scoredDoc struct {
-	Path  string  `json:"path"`
-	Score float64 `json:"score"`
+	Path    string  `json:"path"`
+	Score   float64 `json:"score"`
+	Title   string  `json:"title,omitempty"`
+	Summary string  `json:"summary,omitempty"`
 }
 
 const (
@@ -457,7 +466,13 @@ func bm25Search(docs map[string]*Doc, query string) []scoredDoc {
 			score += idf * numerator / denominator
 		}
 		if score > 0 {
-			results = append(results, scoredDoc{Path: path, Score: math.Round(score*100) / 100})
+			doc := docs[path]
+			sd := scoredDoc{Path: path, Score: math.Round(score*100) / 100}
+			if doc != nil {
+				sd.Title = doc.Title
+				sd.Summary = doc.Summary
+			}
+			results = append(results, sd)
 		}
 	}
 

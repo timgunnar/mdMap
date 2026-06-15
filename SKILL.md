@@ -34,17 +34,16 @@ The index lives in `mdMap.json`. Maintenance instructions live in `SCHEMA.md`. Y
 
 ## How to find the right document
 
-**Use `--search` as your primary query method.** It scores every document with **BM25** — an industry-standard ranking algorithm that rewards keyword frequency (TF) while penalizing words that appear everywhere (IDF). It searches across all text fields — title, summary, positioning, triggers, maintains, retires, and tags — in a single pass.
+**Use `--search` as your primary query method.** It scores every document with **BM25** across all text fields. Each result includes a one-line summary — you can decide which document is relevant without opening anything:
 
 ```bash
-# Primary — ranked by relevance, highest first
 mdmap find --search "publish"
-# 4.23  publishing_guide.md
-# 2.27  testing_guide.md
-# 0.52  architecture.md
+# 4.23  publishing_guide.md  — Complete guide for releasing CLI tools and npm packages
+# 2.27  testing_guide.md     — Pre-release testing and verification workflow
+# 0.52  architecture.md      — Layered system architecture overview
 ```
 
-**Just throw the user's intent at it.** BM25 extracts individual words from the query and scores each document independently. The output is sorted by score — the top result is the one you should open first. A document that mentions "publish" 5 times in its triggers and tags will rank far above one that mentions it once in passing.
+**Read the summary on the first line.** If it matches what the user asked you to do, open that document. If not, check the second line's summary. Do not open every returned document — the summary line IS your decision signal, and BM25 has already ranked the best match first.
 
 Use `--trigger`, `--maintains`, and `--retires` only when you need narrower semantics (e.g., "show me documents that should be *updated* after this change" — that concept only exists in the `maintains` field).
 
