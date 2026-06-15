@@ -171,7 +171,14 @@ func cmdInit(args []string) {
 ## Fields
 
 - **title**: Document title.
-- **type**: Document type. Use consistent values across the project — look at existing documents for convention.
+- **type**: Document type. Two types are defined by mdMap and must be used consistently:
+
+  **` + "`rule`" + `** — a constraint document that governs HOW tasks should be executed. When an agent performs a task, it MUST follow applicable rules. Examples: coding standards, architectural principles, security policies, compliance requirements, naming conventions.
+
+  **` + "`resource`" + `** — a standalone reference document with no indexing relationships. It exists to be consulted, not to constrain execution. Examples: long-form narrative text, world-building documents, fiction chapters, historical reference notes, external spec PDFs converted to markdown.
+
+  For all other documents, use project-specific types. Look at existing documents for convention. Common examples: ` + "`checklist`" + `, ` + "`architecture`" + `, ` + "`design_proposal`" + `, ` + "`api_spec`" + `, ` + "`guide`" + `, ` + "`tutorial`" + `, ` + "`decision_record`" + `, ` + "`meeting_notes`" + `, ` + "`postmortem`" + `.
+
 - **summary**: One-sentence summary (≤80 chars). Answers "what is this document about".
 - **positioning**: One-sentence positioning in the knowledge system. Answers "what role does this document play".
 - **status**: Document status. Use consistent values across the project — look at existing documents for convention.
@@ -242,13 +249,18 @@ func cmdFind(args []string) {
 		}
 		for i := 0; i < top; i++ {
 			sd := scored[i]
-			if sd.Summary != "" {
-				fmt.Printf("%.2f  %s  — %s\n", sd.Score, sd.Path, sd.Summary)
-			} else if sd.Title != "" {
-				fmt.Printf("%.2f  %s  — %s\n", sd.Score, sd.Path, sd.Title)
-			} else {
-				fmt.Printf("%.2f  %s\n", sd.Score, sd.Path)
+			line := fmt.Sprintf("%.2f", sd.Score)
+			if sd.Type != "" {
+				line += fmt.Sprintf("  [%s]", sd.Type)
 			}
+			if sd.Summary != "" {
+				line += fmt.Sprintf("  %s  — %s", sd.Path, sd.Summary)
+			} else if sd.Title != "" {
+				line += fmt.Sprintf("  %s  — %s", sd.Path, sd.Title)
+			} else {
+				line += fmt.Sprintf("  %s", sd.Path)
+			}
+			fmt.Println(line)
 		}
 		return
 	}
@@ -355,6 +367,7 @@ type scoredDoc struct {
 	Score   float64 `json:"score"`
 	Title   string  `json:"title,omitempty"`
 	Summary string  `json:"summary,omitempty"`
+	Type    string  `json:"type,omitempty"`
 }
 
 const (
@@ -471,6 +484,7 @@ func bm25Search(docs map[string]*Doc, query string) []scoredDoc {
 			if doc != nil {
 				sd.Title = doc.Title
 				sd.Summary = doc.Summary
+				sd.Type = doc.Type
 			}
 			results = append(results, sd)
 		}

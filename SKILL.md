@@ -47,6 +47,28 @@ mdmap find --search "publish"
 
 Use `--trigger`, `--maintains`, and `--retires` only when you need narrower semantics (e.g., "show me documents that should be *updated* after this change" — that concept only exists in the `maintains` field).
 
+## Document type system
+
+mdMap predefines two core types that you must use consistently:
+
+| type | meaning | when executing a task |
+|------|---------|----------------------|
+| **`rule`** | constraint document — governs HOW a task should be executed | **Must follow.** Ignoring it means you are not complying with project standards/security/architecture. Examples: coding standards, architectural principles, security policies |
+| **`resource`** | standalone reference — long-form content with no indexing relationships | **Consult as needed.** It does not constrain your behavior; it provides information. Examples: long-form fiction, world-building docs, historical reference notes |
+
+Search output shows the type tag inline — you know a document's role at a glance:
+
+```bash
+mdmap find --search "auth"
+# 3.12  [rule]        security_policy.md    — API authentication security policy — must comply
+# 2.45  [checklist]   auth_migration.md     — Authentication migration checklist
+# 1.80  [resource]    auth_history.md       — History of OAuth protocol evolution
+```
+
+When you see `[rule]` → open it first. You must follow its constraints. When you see `[resource]` → open it only if you need reference information.
+
+**When indexing:** if a document constrains agent behavior → tag it `rule`. If it is a standalone long-form document with no index relationships to other docs → tag it `resource`. For all other documents, use project-specific types.
+
 ## Commands you will use
 
 ### Finding documents
