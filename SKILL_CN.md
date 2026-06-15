@@ -69,6 +69,28 @@ mdmap find --search "auth"
 
 **在填充索引时**：如果文档的作用是约束 Agent 执行行为 → 标 `rule`。如果文档是一篇独立的长文本，与任何其他文档没有索引关系 → 标 `resource`。其他情况用项目自定义 type。
 
+## 文档状态系统
+
+mdMap 预定义了四种**你必须始终使用的核心 status**：
+
+| status | 含义 | Agent 行为 |
+|--------|------|-----------|
+| **`active`** | 当前权威版本 | **直接使用**。这是你应该读和遵守的版本 |
+| **`deprecated`** | 已被新版本替代，或不再适用 | **不要作为主要参考**。搜索输出中会标 `[deprecated]` 警告。deprecated 文档应该有 `superseded_by` 链接或其 `retires` 字段说明退役原因 |
+| **`draft`** | 草稿，内容可能变化 | **仅供参考方向**，不能作为最终依据 |
+| **`archived`** | 历史记录，仅作留存 | **不要主动打开**。除非用户明确要求查看历史 |
+
+`active` 不在搜索输出中显示标签（默认状态，减少噪音）。非 active 状态会显式标注：
+
+```bash
+mdmap find --search "auth migration"
+# 3.12  [checklist]   auth_migration_v3.md   — 当前认证迁移检查清单（v3）
+# 1.80  [checklist]  [deprecated]  auth_migration_v2.md  — 旧版认证迁移检查清单（v2）
+# 0.90  [guide]      [draft]  auth_migration_v4.md  — 新版认证迁移指南（起草中）
+```
+
+**在填充索引时**：当前生效的权威文档 → `active`。被替代的 → `deprecated` 并填写 retires。正在写的 → `draft`。历史留存 → `archived`。
+
 ## 你会用到的命令
 
 ### 查找文档

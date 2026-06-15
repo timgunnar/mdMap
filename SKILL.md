@@ -69,6 +69,28 @@ When you see `[rule]` → open it first. You must follow its constraints. When y
 
 **When indexing:** if a document constrains agent behavior → tag it `rule`. If it is a standalone long-form document with no index relationships to other docs → tag it `resource`. For all other documents, use project-specific types.
 
+## Document status system
+
+mdMap predefines four core statuses that you must use consistently:
+
+| status | meaning | agent behavior |
+|--------|---------|---------------|
+| **`active`** | current authoritative version | **Use directly.** This is the version you should read and follow |
+| **`deprecated`** | replaced or no longer applicable | **Do not use as primary reference.** Search output shows `[deprecated]` warning. A deprecated document should have a `superseded_by` link or a retirement reason in its `retires` field |
+| **`draft`** | work in progress, content may change | **Consult for direction only.** Not final authority |
+| **`archived`** | historical record, kept for reference | **Do not open proactively.** Only open when the user explicitly asks to review history |
+
+`active` is not shown in search output (it's the default — no noise). Non-active statuses are labeled:
+
+```bash
+mdmap find --search "auth migration"
+# 3.12  [checklist]   auth_migration_v3.md   — Current auth migration checklist (v3)
+# 1.80  [checklist]  [deprecated]  auth_migration_v2.md  — Old auth migration checklist (v2)
+# 0.90  [guide]      [draft]  auth_migration_v4.md  — New auth migration guide (drafting)
+```
+
+**When indexing:** current authoritative doc → `active`. Replaced → `deprecated` and fill retires. Work in progress → `draft`. Historical record → `archived`.
+
 ## Commands you will use
 
 ### Finding documents

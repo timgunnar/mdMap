@@ -181,7 +181,15 @@ func cmdInit(args []string) {
 
 - **summary**: One-sentence summary (≤80 chars). Answers "what is this document about".
 - **positioning**: One-sentence positioning in the knowledge system. Answers "what role does this document play".
-- **status**: Document status. Use consistent values across the project — look at existing documents for convention.
+- **status**: Document lifecycle state. Three statuses are defined by mdMap and must be used consistently:
+
+  **` + "`active`" + `** — the current, authoritative version. This is the document agents should read.
+
+  **` + "`deprecated`" + `** — replaced by a newer version or no longer applicable. Do not use as primary reference. A deprecated document should have a ` + "`superseded_by`" + ` link or a retirement reason in its ` + "`retires`" + ` field.
+
+  **` + "`draft`" + `** — work in progress. Content may change. Agents may consult for direction but should not treat it as final authority.
+
+  **` + "`archived`" + `** — historical record, kept for reference only. Not part of the active knowledge graph. Agents should only open it when explicitly asked to review history.
 - **tags**: Free-form tags. Reuse existing tags for consistency.
 - **links**: Navigation hints found in the document body ("See also", "For details see", "Supersedes", etc.). Each link has a target path and a natural-language reason.
 - **triggers**: When should someone read this document? Used for find --trigger queries, which match by substring. Include multiple phrasings covering different ways users might express the same intent. Cover common synonyms and keywords that people who need this document would naturally search for. Example: for a publishing guide, include "publishing a tool", "npm publish", "releasing to GitHub", "shipping a release" — not just one phrasing.
@@ -252,6 +260,9 @@ func cmdFind(args []string) {
 			line := fmt.Sprintf("%.2f", sd.Score)
 			if sd.Type != "" {
 				line += fmt.Sprintf("  [%s]", sd.Type)
+			}
+			if sd.Status != "" && sd.Status != "active" {
+				line += fmt.Sprintf("  [%s]", sd.Status)
 			}
 			if sd.Summary != "" {
 				line += fmt.Sprintf("  %s  — %s", sd.Path, sd.Summary)
@@ -368,6 +379,7 @@ type scoredDoc struct {
 	Title   string  `json:"title,omitempty"`
 	Summary string  `json:"summary,omitempty"`
 	Type    string  `json:"type,omitempty"`
+	Status  string  `json:"status,omitempty"`
 }
 
 const (
@@ -485,6 +497,7 @@ func bm25Search(docs map[string]*Doc, query string) []scoredDoc {
 				sd.Title = doc.Title
 				sd.Summary = doc.Summary
 				sd.Type = doc.Type
+				sd.Status = doc.Status
 			}
 			results = append(results, sd)
 		}
