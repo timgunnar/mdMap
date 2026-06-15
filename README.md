@@ -44,13 +44,14 @@ mdmap init ./docs
 #  read the doc, extract type/summary/triggers/links, write back."
 
 # After that, you never scan directories again.
-mdmap find --trigger "publishing a tool"       # "what should I read for this task?"
-mdmap find --maintains "github changed auth"    # "what needs updating after this change?"
+mdmap find --search "publishing a tool"          # search all fields — use this first
+mdmap find --trigger "publishing a tool"         # narrower: read-trigger only
+mdmap find --maintains "github changed auth"     # narrower: update-trigger only
 mdmap find --retires "stopped CLI development"  # "what can I archive now?"
 mdmap find --type checklist --tag "publish"     # filtered search
 ```
 
-Trigger matching is substring-based — your LLM translates user intent into short keywords. A well-written trigger entry covers multiple phrasings (e.g., "publishing a tool", "npm publish", "releasing to GitHub"), so common keywords match regardless of how the user phrases the request. See SKILL.md for the agent-facing guide on how to formulate queries.
+`--search` does substring matching across all text fields — title, summary, positioning, triggers, maintains, retires, and tags. Just throw the user's intent at it. The more text you give it, the more substrings it has to match against.
 
 ## What makes it different
 
@@ -78,6 +79,7 @@ Trigger-based match:    ~200B
 |:--|:--|
 | `init <dir>` | Scan directory, create mdMap.json + SCHEMA.md |
 | `find <path>` | Exact document lookup (O(1)) |
+| `find --search <text>` | Match across all text fields — use this first |
 | `find --trigger <text>` | "What should I read for this task?" |
 | `find --maintains <text>` | "What needs updating after this change?" |
 | `find --retires <text>` | "What can be safely archived?" |

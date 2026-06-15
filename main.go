@@ -44,7 +44,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "mdMap: markdown document index and query engine. we map your docs, you find them.")
 		fmt.Fprintln(os.Stderr, "usage: mdmap <command> [flags]")
 		fmt.Fprintln(os.Stderr, "  init <dir>     scan directory, create mdMap.json + SCHEMA.md")
-		fmt.Fprintln(os.Stderr, "  find <flags>   search documents by path, trigger, type, tag")
+		fmt.Fprintln(os.Stderr, "  find <flags>   search documents by path, search, trigger, type, tag")
 		fmt.Fprintln(os.Stderr, "  validate       integrity checks (orphans, broken links, cycles)")
 		fmt.Fprintln(os.Stderr, "  changed        show what changed since last index")
 		os.Exit(1)
@@ -195,6 +195,7 @@ func cmdFind(args []string) {
 	trigger := flags.String("trigger", "", "find by read trigger")
 	maintains := flags.String("maintains", "", "find by update trigger")
 	retires := flags.String("retires", "", "find by retire trigger")
+	search := flags.String("search", "", "fuzzy match across title, summary, triggers, maintains, retires, tags")
 	docType := flags.String("type", "", "filter by document type")
 	status := flags.String("status", "", "filter by document status")
 	tag := flags.String("tag", "", "filter by tag")
@@ -228,6 +229,9 @@ func cmdFind(args []string) {
 
 	var results []string
 	for path, doc := range m.Docs {
+		if *search != "" && !matchesSearch(doc, *search) {
+			continue
+		}
 		if *trigger != "" && !containsAny(doc.Triggers, *trigger) {
 			continue
 		}
@@ -317,6 +321,45 @@ func containsAny(list []string, substr string) bool {
 func hasTag(tags []string, target string) bool {
 	for _, t := range tags {
 		if t == target {
+			return true
+		}
+	}
+	return false
+}
+
+func matchesSearch(doc *Doc, term string) bool {
+	words := strings.Fields(strings.ToLower(term))
+
+	check := func(s string) bool {
+		s = strings.ToLower(s)
+		for _, w := range words {
+			if strings.Contains(s, w) {
+				return true
+			}
+		}
+		return false
+	}
+
+	if check(doc.Title) || check(doc.Summary) || check(doc.Positioning) {
+		return true
+	}
+	for _, t := range doc.Triggers {
+		if check(t) {
+			return true
+		}
+	}
+	for _, m := range doc.Maintains {
+		if check(m) {
+			return true
+		}
+	}
+	for _, r := range doc.Retires {
+		if check(r) {
+			return true
+		}
+	}
+	for _, t := range doc.Tags {
+		if check(t) {
 			return true
 		}
 	}

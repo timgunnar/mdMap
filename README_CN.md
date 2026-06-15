@@ -44,13 +44,14 @@ mdmap init ./docs
 #  读取全文，提取 type/summary/triggers/links，写回。"
 
 # 之后，你再也不扫目录。
-mdmap find --trigger "发布工具"                  # "这个任务该读什么？"
-mdmap find --maintains "github 改了认证"          # "这个变更后什么该更新？"
+mdmap find --search "发布工具"                    # 搜全部字段——先用这个
+mdmap find --trigger "发布工具"                   # 精确：只看读取触发
+mdmap find --maintains "github 改了认证"          # 精确：只看更新触发
 mdmap find --retires "停止了 CLI 开发"            # "什么可以归档了？"
 mdmap find --type checklist --tag "发布"          # 过滤搜索
 ```
 
-触发词匹配是基于子串的——你的 LLM Agent 负责把用户意图翻译成短关键词。一份好的触发词条目会包含多种说法（比如"发布工具"、"npm publish"、"推送到 GitHub"），这样不管用户怎么表达，常用关键词都能命中。Agent 端的查询指南见 SKILL_CN.md。
+`--search` 在所有文本字段中做子串匹配——标题、摘要、定位、触发器、更新触发、退役触发、标签。直接把用户的意图扔进去就行。给的文本越多，可匹配的子串就越多。
 
 ## 不一样在哪
 
@@ -78,6 +79,7 @@ mdmap find --type checklist --tag "发布"          # 过滤搜索
 |:--|:--|
 | `init <dir>` | 扫描目录，创建 mdMap.json + SCHEMA.md |
 | `find <path>` | 精确查找（O(1)） |
+| `find --search <文本>` | 跨全部文字字段匹配——先用这个 |
 | `find --trigger <文本>` | "这个任务该读什么？" |
 | `find --maintains <文本>` | "这次变更后什么该更新？" |
 | `find --retires <文本>` | "什么可以安全归档？" |

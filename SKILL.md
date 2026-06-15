@@ -32,33 +32,33 @@ Someone ran `mdmap init` to create the initial index. Then an LLM (possibly a pr
 
 The index lives in `mdMap.json`. Maintenance instructions live in `SCHEMA.md`. You should never read the full `mdMap.json` into context — always query it through the CLI.
 
-## How trigger matching works
+## How to find the right document
 
-`--trigger`, `--maintains`, and `--retires` use **substring matching** against the text stored in the index. They are not semantic — they do not understand synonyms or paraphrasing on their own.
-
-**Your job is to translate the user's intent into short, high-probability keywords.** For example, when a user says "help me publish this to GitHub" or "I want to push a release":
+**Use `--search` as your primary query method.** It does substring matching across ALL text fields — title, summary, positioning, triggers, maintains, retires, and tags — in a single pass. Just throw the user's intent at it:
 
 ```bash
-# ✅ Good — extract the core keyword and try a few variations
-mdmap find --trigger "publish"
-mdmap find --trigger "release"
-mdmap find --trigger "github"
-
-# ❌ Bad — using the full user sentence as-is
-mdmap find --trigger "help me publish this to GitHub"
+# ✅ Primary method — search all fields at once
+mdmap find --search "publish"
+mdmap find --search "help me publish this to GitHub"
+mdmap find --search "推代码"
 ```
 
-If the first query returns nothing, try one or two synonyms before giving up. The trigger text in the index should have been written with diverse keywords by the LLM that filled it — so short, common keywords usually match.
+The more text you give `--search`, the more substrings it has to match against. A user saying "I need to push code and release to GitHub" contains "push", "release", and "github" — any of those matching a field in the index will return the document. **You do not need to manually extract keywords or retry with synonyms.**
+
+Use `--trigger`, `--maintains`, and `--retires` only when you need the narrower semantics (e.g., "show me documents that should be *updated* after this change" — that concept only exists in the `maintains` field).
 
 ## Commands you will use
 
 ### Finding documents
 
 ```bash
+# Primary — search all fields at once (use this first)
+mdmap find --search "publishing"
+
 # Exact lookup (O(1)) — you know the path
 mdmap find docs/architecture/auth_v3.md
 
-# Read trigger — "what document covers what I'm doing right now?"
+# Narrower — only read-trigger, update-trigger, or retire-trigger fields
 mdmap find --trigger "publishing a CLI tool"
 
 # Update trigger — "what documents should be reviewed after this change?"
