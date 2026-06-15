@@ -403,6 +403,75 @@ if echo "$result" | grep -q "big_novel.md"; then pass "find --status unread work
 rm -rf "$UNREAD_DIR"
 
 # ============================================================
+# Test: init — re-run preserves metadata, detects adds/deletes
+# ============================================================
+echo -e "\n${CYAN}=== 15. init — idempotent resync ===${NC}"
+
+SYNC_DIR="$TESTDIR/sync_test"
+mkdir -p "$SYNC_DIR"
+echo "# Doc A" > "$SYNC_DIR/a.md"
+echo "# Doc B" > "$SYNC_DIR/b.md"
+echo "# Doc C" > "$SYNC_DIR/c.md"
+
+rundir "$BIN" init "$SYNC_DIR" >/dev/null
+python3 << PYEOF
+import json
+with open("$SYNC_DIR/mdMap.json") as f: m = json.load(f)
+m["docs"]["a.md"]["type"] = "rule"
+m["docs"]["a.md"]["summary"] = "Rule A"
+m["docs"]["a.md"]["status"] = "active"
+with open("$SYNC_DIR/mdMap.json", "w") as f: json.dump(m, f, indent=2)
+PYEOF
+
+rm "$SYNC_DIR/b.md"
+echo "# Doc D" > "$SYNC_DIR/d.md"
+
+rundir "$BIN" init "$SYNC_DIR" >/dev/null
+
+count=$(python3 -c "import json; d=json.load(open('$SYNC_DIR/mdMap.json')); print(len(d['docs']))")
+if [ "$count" = "3" ]; then pass "re-init: 3 docs (b removed, d added)"; else fail "re-init count: $count (expected 3)"; fi
+
+has_d=$(python3 -c "import json; d=json.load(open('$SYNC_DIR/mdMap.json')); print('d.md' in d['docs'])")
+if [ "$has_d" = "True" ]; then pass "re-init: d.md added"; else fail "re-init: d.md missing"; fi
+
+has_b=$(python3 -c "import json; d=json.load(open('$SYNC_DIR/mdMap.json')); print('b.md' in d['docs'])")
+if [ "$has_b" = "False" ]; then pass "re-init: b.md removed"; else fail "re-init: b.md still present"; fi
+
+meta=$(python3 -c "import json; d=json.load(open('$SYNC_DIR/mdMap.json')); doc=d['docs']['a.md']; print(doc.get('type','')+'|'+doc.get('summary','')+'|'+doc.get('status',''))")
+if [ "$meta" = "rule|Rule A|active" ]; then pass "re-init: metadata preserved"; else fail "re-init metadata lost: $meta"; fi
+
+rm -rf "$SYNC_DIR"
+
+# ============================================================
+# Test: init — git-aware mode (runs inside mdMap repo)
+# ============================================================
+echo -e "\n${CYAN}=== 16. init — git-aware ===${NC}"
+
+GIT_DIR="$TESTDIR/git_test"
+mkdir -p "$GIT_DIR"
+cd "$GIT_DIR" && git init >/dev/null 2>&1 && git config user.email "test@test" && git config user.name "test"
+echo "# Tracked Doc" > "$GIT_DIR/tracked.md"
+echo "# Also Tracked" > "$GIT_DIR/also.md"
+cd "$GIT_DIR" && git add tracked.md also.md && git commit -m "init" >/dev/null 2>&1
+echo "# Untracked New" > "$GIT_DIR/untracked.md"
+echo "# Ignored" > "$GIT_DIR/.gitignore"
+echo "ignored.md" >> "$GIT_DIR/.gitignore"
+echo "# Should Be Ignored" > "$GIT_DIR/ignored.md"
+
+rundir "$BIN" init "$GIT_DIR" >/dev/null
+
+has_tracked=$(python3 -c "import json; d=json.load(open('$GIT_DIR/mdMap.json')); print('tracked.md' in d['docs'])")
+if [ "$has_tracked" = "True" ]; then pass "git: tracked.md indexed"; else fail "git: tracked.md missing"; fi
+
+has_untracked=$(python3 -c "import json; d=json.load(open('$GIT_DIR/mdMap.json')); print('untracked.md' in d['docs'])")
+if [ "$has_untracked" = "True" ]; then pass "git: untracked.md indexed"; else fail "git: untracked.md missing"; fi
+
+has_ignored=$(python3 -c "import json; d=json.load(open('$GIT_DIR/mdMap.json')); print('ignored.md' in d['docs'])")
+if [ "$has_ignored" = "False" ]; then pass "git: ignored.md excluded"; else fail "git: ignored.md should be excluded"; fi
+
+rm -rf "$GIT_DIR"
+
+# ============================================================
 # Summary
 # ============================================================
 echo ""

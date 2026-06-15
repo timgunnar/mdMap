@@ -78,7 +78,7 @@ Trigger-based match:    ~200B
 
 | Command | What it does |
 |:--|:--|
-| `init <dir>` | Scan directory, create mdMap.json + SCHEMA.md |
+| `init <dir>` | Idempotent two-way sync — never overwrites metadata. Git-aware: uses `git ls-files` when available |
 | `find <path>` | Exact document lookup (O(1)) |
 | `find --search <text>` | Filter by semantic fields (title/summary/positioning) |
 | `find --trigger <text>` | "What should I read for this task?" |

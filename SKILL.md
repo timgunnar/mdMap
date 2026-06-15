@@ -110,7 +110,21 @@ mdmap find --search "auth migration"
 
 mdMap is NOT a one-shot index. It improves every time you read a document.
 
-**`init` only does the minimum**: scan directory, extract titles, compute hashes. Documents ≥50KB are marked `unread` — they go into the index by title only. No hash, no type, no summary, no triggers. This costs zero API tokens.
+**`init` is an idempotent two-way sync.** It never overwrites existing metadata — adds new files, removes deleted files, updates hashes only. Safe to re-run anytime:
+
+```bash
+mdmap init ./docs
+# mdMap: synced 152 documents in ./docs
+#   +3 -1 ~2
+#   147 unread (≥50KB) — will be indexed when first read
+```
+
+- `+3`: 3 new .md files on disk
+- `-1`: 1 .md file deleted from disk
+- `~2`: 2 existing files changed (hash updated)
+- All existing metadata (type, summary, triggers, links, etc.) preserved
+
+If the directory is a git repo, `init` uses `git ls-files` to discover files (respects `.gitignore`). Otherwise, falls back to filesystem walk.
 
 **Your job**: when you read an `unread` document (for any task, via any method — not just mdMap), update its entry afterward:
 
@@ -130,6 +144,22 @@ mdMap is NOT a one-shot index. It improves every time you read a document.
 This is the same as lazy-loading: the index grows organically as agents do real work.
 
 **When indexing:** current authoritative doc → `active`. Replaced → `deprecated` and fill retires. Work in progress → `draft`. Historical record → `archived`.
+
+## When to use mdMap vs direct file access
+
+mdMap is a navigation layer, not a replacement for file I/O. **You always open and read files the normal way.** mdMap just tells you which one to open.
+
+| scenario | use | why |
+|----------|-----|-----|
+| Don't know which document to read | **mdMap** `find --search --type` | Locate first, then open |
+| Already know the file path | **Open file directly** | mdMap is middleware; skip if you know the target |
+| Need to find all applicable rules | **mdMap** `find --type rule` | Exact type filter → 2-5 results |
+| mdMap returns `[unread]` document | **Open file directly**, then update mdMap.json | Progressive indexing |
+| File doesn't exist yet, creating new | **Create directly** | `init` or `changed` will pick it up |
+| Verify document graph integrity | **mdMap** `validate` | Five deterministic checks, zero LLM |
+| See what changed recently | **mdMap** `changed` | Hash comparison, instant results |
+
+Core principle: **mdMap prevents mistakes (missing a rule), not extra work (reading extra files).** If mdMap tells you `[rule] publish_guide.md`, you open it directly. No intermediate steps needed.
 
 ## Commands you will use
 

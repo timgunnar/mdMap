@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -132,47 +133,95 @@ func cmdInit(args []string) {
 		rootDir = flags.Arg(0)
 	}
 
+	absRoot, _ := filepath.Abs(rootDir)
+	schemaPath := filepath.Join(absRoot, "SCHEMA.md")
+
+	existing, _ := loadMap(rootDir)
+
 	m := MapFile{
 		Schema: "1.0",
 		Root:   rootDir,
 		Docs:   make(map[string]*Doc),
 	}
 
-	absRoot, _ := filepath.Abs(rootDir)
-	schemaPath := filepath.Join(absRoot, "SCHEMA.md")
+	if existing != nil {
+		for p, d := range existing.Docs {
+			m.Docs[p] = d
+		}
+	}
 
-	filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return nil
-		}
-		if info.IsDir() && info.Name() == ".git" {
-			return filepath.SkipDir
-		}
-		if !strings.HasSuffix(info.Name(), ".md") {
-			return nil
-		}
-		absPath, _ := filepath.Abs(path)
-		if absPath == schemaPath {
-			return nil
-		}
+	diskFiles := make(map[string]os.FileInfo)
 
-		relPath, _ := filepath.Rel(rootDir, path)
-		if _, exists := m.Docs[relPath]; exists {
-			return nil
+	if isGitRepo(rootDir) {
+		curr, err := gitTrackedMdFiles(rootDir)
+		if err == nil {
+			for _, rel := range curr {
+				abs := filepath.Join(rootDir, rel)
+				if abs == schemaPath {
+					continue
+				}
+				if info, err := os.Stat(abs); err == nil {
+					diskFiles[rel] = info
+				}
+			}
 		}
+	}
 
+	if len(diskFiles) == 0 {
+		filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil || info.IsDir() {
+				if info != nil && info.IsDir() && info.Name() == ".git" {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			if !strings.HasSuffix(info.Name(), ".md") {
+				return nil
+			}
+			absPath, _ := filepath.Abs(path)
+			if absPath == schemaPath {
+				return nil
+			}
+			relPath, _ := filepath.Rel(rootDir, path)
+			diskFiles[relPath] = info
+			return nil
+		})
+	}
+
+	added := 0
+	removed := 0
+	updated := 0
+
+	for rel, info := range diskFiles {
+		if doc, ok := m.Docs[rel]; ok {
+			if doc.Status == "unread" {
+				continue
+			}
+			newHash := computeHash(filepath.Join(rootDir, rel))
+			if newHash != doc.Hash {
+				doc.Hash = newHash
+				updated++
+			}
+			continue
+		}
 		doc := &Doc{
-			Title: extractTitle(path),
+			Title: extractTitle(filepath.Join(rootDir, rel)),
 		}
 		if info.Size() >= sizeThreshold {
 			doc.Status = "unread"
-			doc.Type = ""
 		} else {
-			doc.Hash = computeHash(path)
+			doc.Hash = computeHash(filepath.Join(rootDir, rel))
 		}
-		m.Docs[relPath] = doc
-		return nil
-	})
+		m.Docs[rel] = doc
+		added++
+	}
+
+	for rel := range m.Docs {
+		if _, ok := diskFiles[rel]; !ok {
+			delete(m.Docs, rel)
+			removed++
+		}
+	}
 
 	if err := saveMap(&m, rootDir); err != nil {
 		fmt.Fprintf(os.Stderr, "mdMap: %v\n", err)
@@ -223,12 +272,51 @@ func cmdInit(args []string) {
 			unreadCount++
 		}
 	}
-	fmt.Printf("mdMap: initialized %d documents in %s\n", len(m.Docs), rootDir)
+	fmt.Printf("mdMap: synced %d documents in %s\n", len(m.Docs), rootDir)
+	parts := []string{}
+	if added > 0 {
+		parts = append(parts, fmt.Sprintf("+%d", added))
+	}
+	if removed > 0 {
+		parts = append(parts, fmt.Sprintf("-%d", removed))
+	}
+	if updated > 0 {
+		parts = append(parts, fmt.Sprintf("~%d", updated))
+	}
+	if len(parts) > 0 {
+		fmt.Printf("  %s\n", strings.Join(parts, " "))
+	}
 	if unreadCount > 0 {
 		fmt.Printf("  %d unread (≥50KB) — will be indexed when first read\n", unreadCount)
 	}
 	fmt.Printf("  mdMap.json — document index\n")
 	fmt.Printf("  SCHEMA.md  — field reference for LLM maintenance\n")
+}
+
+func isGitRepo(dir string) bool {
+	cmd := exec.Command("git", "rev-parse", "--git-dir")
+	cmd.Dir = dir
+	return cmd.Run() == nil
+}
+
+func gitTrackedMdFiles(dir string) ([]string, error) {
+	cmd := exec.Command("git", "ls-files",
+		"--others", "--exclude-standard",
+		"--cached",
+		"--", "*.md")
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+	var files []string
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			files = append(files, line)
+		}
+	}
+	return files, nil
 }
 
 func cmdFind(args []string) {
