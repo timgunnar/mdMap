@@ -9,20 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `init <dir>` — scan directory, create mdMap.json + SCHEMA.md skeleton
+- `init <dir>` — scan directory, create mdMap.json + SCHEMA.md skeleton. ≥50KB files automatically marked `status: "unread"` (title only, no hash, no content read — zero token cost)
 - `find <path>` — exact document lookup by path (O(1))
+- `find --search <text>` — substring filter across semantic fields (title, summary, positioning)
 - `find --trigger <text>` — find documents by read-trigger condition
 - `find --maintains <text>` — find documents by update-trigger condition
 - `find --retires <text>` — find documents by retirement-trigger condition
-- `find --type <text>` — filter by document type
-- `find --tag <text>` — filter by tag
+- `find --type <text>` — filter by document type (rule, resource, or project-specific)
+- `find --tag <text>` — filter by tag (exact match)
+- `find --status <text>` — filter by status (active, deprecated, draft, archived, unread)
 - `find --json` — machine-readable output mode
 - `validate` — 5 integrity checks: disk↔index bidirectional, file move detection, broken links, link cycles, stale links
 - `validate --fix` — auto-fix file moves in mdMap.json
 - `validate --strict` — treat warnings as errors (CI gate)
 - `changed` — detect added, modified, moved, and deleted documents since last index
 - Structured document model: title, type, summary, positioning, status, tags, links, triggers, maintains, retires
-- SCHEMA.md — LLM-readable field reference for maintaining the index
+- Predefined types: `rule` (constraint documents agents must follow), `resource` (standalone reference)
+- Predefined statuses: `active`, `deprecated`, `draft`, `archived`, `unread` (large files, lazy-indexed)
+- Progressive indexing: `unread` documents get indexed when an agent first reads them — not at init time
+- Streaming I/O: `extractTitle` uses `bufio.Scanner`, `computeHash` uses `io.Copy` → `md5.New`. Won't OOM on large files
+- SCHEMA.md — LLM-readable field reference for maintaining the index, includes predefined enums
 - `_ext` field — transparent passthrough for project-specific extensions
 - Cross-platform Go binary, zero dependencies
 
