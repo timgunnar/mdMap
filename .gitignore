@@ -1,0 +1,14 @@
+.git/
+.claude/
+.idea/
+mdmap
+mdmap-darwin
+mdmap-linux
+mdmap-windows.exe
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+.DS_Store
+node_modules/

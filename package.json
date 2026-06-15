@@ -1,0 +1,47 @@
+{
+  "name": "@timgunnar/mdmap",
+  "version": "0.0.1",
+  "description": "Markdown document index and query engine. Tell it what you're doing — find the right doc without burning LLM context on the wrong ones.",
+  "keywords": [
+    "mdmap",
+    "markdown",
+    "document-index",
+    "document-management",
+    "claude-code",
+    "ai-agent",
+    "llm-tools",
+    "knowledge-management"
+  ],
+  "homepage": "https://github.com/timgunnar/mdMap",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/timgunnar/mdMap"
+  },
+  "license": "MIT",
+  "author": "timgunnar",
+  "bin": {
+    "mdmap": "./mdmap.sh"
+  },
+  "files": [
+    "mdmap.sh",
+    "mdmap.cmd",
+    "mdmap-darwin",
+    "mdmap-linux",
+    "mdmap-windows.exe",
+    "README.md",
+    "README_CN.md",
+    "LICENSE",
+    "SKILL.md",
+    "SKILL_CN.md",
+    "CHANGELOG.md",
+    "build.js"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "os": ["darwin", "linux", "win32"],
+  "scripts": {
+    "build": "node build.js",
+    "prepublishOnly": "npm run build"
+  }
+}
