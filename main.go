@@ -246,6 +246,26 @@ func cmdFind(args []string) {
 
 	if *search != "" {
 		scored := bm25Search(m.Docs, *search)
+
+		filtered := make([]scoredDoc, 0, len(scored))
+		for _, sd := range scored {
+			doc := m.Docs[sd.Path]
+			if doc == nil {
+				continue
+			}
+			if *docType != "" && doc.Type != *docType {
+				continue
+			}
+			if *status != "" && doc.Status != *status {
+				continue
+			}
+			if *tag != "" && !hasTag(doc.Tags, *tag) {
+				continue
+			}
+			filtered = append(filtered, sd)
+		}
+		scored = filtered
+
 		if *jsonOut {
 			data, _ := json.MarshalIndent(scored, "", "  ")
 			fmt.Println(string(data))

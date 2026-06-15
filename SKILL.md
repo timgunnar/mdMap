@@ -34,18 +34,32 @@ The index lives in `mdMap.json`. Maintenance instructions live in `SCHEMA.md`. Y
 
 ## How to find the right document
 
-**Use `--search` as your primary query method.** It scores every document with **BM25** across all text fields. Each result includes a one-line summary — you can decide which document is relevant without opening anything:
+mdMap splits search into two steps: **narrow the space** + **read summaries**. Together they pinpoint a single document.
 
-```bash
-mdmap find --search "publish"
-# 4.23  publishing_guide.md  — Complete guide for releasing CLI tools and npm packages
-# 2.27  testing_guide.md     — Pre-release testing and verification workflow
-# 0.52  architecture.md      — Layered system architecture overview
+```
+Step 1: --type narrows the search space (strong signal, deterministic)
+        You know what you're doing → you know what type of doc you need
+        "publish a project" → need constraint rules → --type rule
+        "look up history" → need reference docs → --type resource
+
+Step 2: --search does BM25 scoring within that narrowed space
+        Result set shrinks to 2-5 documents
+        Read summaries → use your own semantic understanding to pick
 ```
 
-**Read the summary on the first line.** If it matches what the user asked you to do, open that document. If not, check the second line's summary. Do not open every returned document — the summary line IS your decision signal, and BM25 has already ranked the best match first.
+**Core principle: always add `--type`.** Without it, you're back to full-text search and noise returns. With it, the result set is naturally small — rule documents are few, resource documents are few. Your semantic understanding on 2-5 summary lines beats any algorithm on a 50-line list.
 
-Use `--trigger`, `--maintains`, and `--retires` only when you need narrower semantics (e.g., "show me documents that should be *updated* after this change" — that concept only exists in the `maintains` field).
+```bash
+# User says: "I need to publish project-a"
+# You reason: they need publishing rules → --type rule
+mdmap find --search "project a publish" --type rule
+# 0.86  [rule]  project_a_publish.md  — Publishing rules for project-a: GitHub releases, vX.Y.Z tags
+# 0.42  [rule]  project_b_publish.md  — Publishing rules for project-b: npm publish
+
+# Two results. First summary matches → open project_a_publish.md. Done.
+```
+
+If no summary is an obvious match, try one or two keyword variations (e.g., `--search "project-a release" --type rule`) rather than opening every result. The summary already tells you what each document covers.
 
 ## Document type system
 
