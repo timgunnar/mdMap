@@ -123,6 +123,40 @@ func extractTitle(path string) string {
 	return ""
 }
 
+type diskFileInfo struct {
+	info os.FileInfo
+	hash string
+}
+
+func scanDiskMdFiles(rootDir string) map[string]*diskFileInfo {
+	absRoot, _ := filepath.Abs(rootDir)
+	schemaPath := filepath.Join(absRoot, "SCHEMA.md")
+
+	files := make(map[string]*diskFileInfo)
+	filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			if info != nil && info.IsDir() && info.Name() == ".git" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(info.Name(), ".md") {
+			return nil
+		}
+		absPath, _ := filepath.Abs(path)
+		if absPath == schemaPath {
+			return nil
+		}
+		relPath, _ := filepath.Rel(rootDir, path)
+		files[relPath] = &diskFileInfo{
+			info: info,
+			hash: computeHash(path),
+		}
+		return nil
+	})
+	return files
+}
+
 func cmdInit(args []string) {
 	flags := flag.NewFlagSet("init", flag.ExitOnError)
 	flags.Parse(args)
@@ -149,39 +183,19 @@ func cmdInit(args []string) {
 		}
 	}
 
-	diskFiles := make(map[string]os.FileInfo)
-
-	filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
-			if info != nil && info.IsDir() && info.Name() == ".git" {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if !strings.HasSuffix(info.Name(), ".md") {
-			return nil
-		}
-		absPath, _ := filepath.Abs(path)
-		if absPath == schemaPath {
-			return nil
-		}
-		relPath, _ := filepath.Rel(rootDir, path)
-		diskFiles[relPath] = info
-		return nil
-	})
+	diskFiles := scanDiskMdFiles(rootDir)
 
 	added := 0
 	removed := 0
 	updated := 0
 
-	for rel, info := range diskFiles {
+	for rel, df := range diskFiles {
 		if doc, ok := m.Docs[rel]; ok {
 			if doc.Status == "unread" {
 				continue
 			}
-			newHash := computeHash(filepath.Join(rootDir, rel))
-			if newHash != doc.Hash {
-				doc.Hash = newHash
+			if df.hash != doc.Hash {
+				doc.Hash = df.hash
 				updated++
 			}
 			continue
@@ -189,10 +203,10 @@ func cmdInit(args []string) {
 		doc := &Doc{
 			Title: extractTitle(filepath.Join(rootDir, rel)),
 		}
-		if info.Size() >= sizeThreshold {
+		if df.info.Size() >= sizeThreshold {
 			doc.Status = "unread"
 		} else {
-			doc.Hash = computeHash(filepath.Join(rootDir, rel))
+			doc.Hash = df.hash
 		}
 		m.Docs[rel] = doc
 		added++
@@ -312,54 +326,12 @@ func cmdFind(args []string) {
 		return
 	}
 
-	if *search != "" {
-		results := searchDocs(m.Docs, *search, *docType, *status, *tag)
-		if *jsonOut {
-			data, _ := json.MarshalIndent(results, "", "  ")
-			fmt.Println(string(data))
-			return
-		}
-		for _, r := range results {
-			printResult(r)
-		}
-		return
-	}
-
-	var results []resultDoc
-	for path, doc := range m.Docs {
-		if *trigger != "" && !containsAny(doc.Triggers, *trigger) {
-			continue
-		}
-		if *maintains != "" && !containsAny(doc.Maintains, *maintains) {
-			continue
-		}
-		if *retires != "" && !containsAny(doc.Retires, *retires) {
-			continue
-		}
-		if *docType != "" && doc.Type != *docType {
-			continue
-		}
-		if *status != "" && doc.Status != *status {
-			continue
-		}
-		if *tag != "" && !hasTag(doc.Tags, *tag) {
-			continue
-		}
-		results = append(results, resultDoc{
-			Path:    path,
-			Type:    doc.Type,
-			Status:  doc.Status,
-			Summary: doc.Summary,
-			Title:   doc.Title,
-		})
-	}
-
+	results := searchDocs(m.Docs, *search, *docType, *status, *tag, *trigger, *maintains, *retires)
 	if *jsonOut {
 		data, _ := json.MarshalIndent(results, "", "  ")
 		fmt.Println(string(data))
 		return
 	}
-
 	for _, r := range results {
 		printResult(r)
 	}
@@ -436,7 +408,7 @@ type resultDoc struct {
 	Title   string `json:"title,omitempty"`
 }
 
-func searchDocs(docs map[string]*Doc, query, docType, status, tag string) []resultDoc {
+func searchDocs(docs map[string]*Doc, query, docType, status, tag, trigger, maintains, retires string) []resultDoc {
 	query = strings.ToLower(strings.TrimSpace(query))
 	words := strings.Fields(query)
 
@@ -452,6 +424,15 @@ func searchDocs(docs map[string]*Doc, query, docType, status, tag string) []resu
 			continue
 		}
 		if tag != "" && !hasTag(doc.Tags, tag) {
+			continue
+		}
+		if trigger != "" && !containsAny(doc.Triggers, trigger) {
+			continue
+		}
+		if maintains != "" && !containsAny(doc.Maintains, maintains) {
+			continue
+		}
+		if retires != "" && !containsAny(doc.Retires, retires) {
 			continue
 		}
 		if query != "" && !matchesSemantic(doc, words) {
@@ -748,31 +729,10 @@ func cmdChanged(args []string) {
 		os.Exit(1)
 	}
 
-	current := make(map[string]string)
-	absRoot, _ := filepath.Abs(rootDir)
-	schemaPath := filepath.Join(absRoot, "SCHEMA.md")
-
-	filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return nil
-		}
-		if info.IsDir() && info.Name() == ".git" {
-			return filepath.SkipDir
-		}
-		if !strings.HasSuffix(info.Name(), ".md") {
-			return nil
-		}
-		absPath, _ := filepath.Abs(path)
-		if absPath == schemaPath {
-			return nil
-		}
-		relPath, _ := filepath.Rel(rootDir, path)
-		current[relPath] = computeHash(path)
-		return nil
-	})
+	diskFiles := scanDiskMdFiles(rootDir)
 
 	var newFiles []string
-	for path := range current {
+	for path := range diskFiles {
 		if _, exists := m.Docs[path]; !exists {
 			newFiles = append(newFiles, path)
 		}
@@ -782,11 +742,11 @@ func cmdChanged(args []string) {
 	var modified []string
 
 	for path, doc := range m.Docs {
-		h, exists := current[path]
+		df, exists := diskFiles[path]
 		if !exists {
 			matched := false
 			for _, nf := range newFiles {
-				if current[nf] == doc.Hash {
+				if diskFiles[nf].hash == doc.Hash {
 					fmt.Printf("moved: %s → %s\n", path, nf)
 					printedMoves[nf] = true
 					matched = true
@@ -796,7 +756,7 @@ func cmdChanged(args []string) {
 			if !matched {
 				fmt.Printf("deleted: %s\n", path)
 			}
-		} else if h != doc.Hash {
+		} else if df.hash != doc.Hash {
 			modified = append(modified, path)
 		}
 	}

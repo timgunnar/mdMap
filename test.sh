@@ -178,6 +178,15 @@ if echo "$json_result" | python3 -c "import sys,json; d=json.load(sys.stdin); as
   pass "--search --json returns array with summary"
 else fail "--search --json: $json_result"; fi
 
+result=$(rundir "$BIN" find --search "publishing" --trigger "publishing" 2>&1)
+if echo "$result" | grep -q "publish_checklist.md"; then pass "--search 'publishing' + --trigger 'publishing' combined"; else fail "--search+trigger combo: $result"; fi
+
+result=$(rundir "$BIN" find --search "auth" --trigger "security" 2>&1)
+if echo "$result" | grep -q "auth_v3.md"; then pass "--search 'auth' + --trigger 'security' combined"; else fail "--search+trigger combo auth: $result"; fi
+
+result=$(rundir "$BIN" find --type checklist --search "publishing" --trigger "publishing" --tag "publish" 2>&1)
+if echo "$result" | grep -q "publish_checklist.md"; then pass "--type --search --trigger --tag all combined"; else fail "all combined: $result"; fi
+
 # ============================================================
 # Test: validate — clean
 # ============================================================
