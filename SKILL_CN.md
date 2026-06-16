@@ -11,44 +11,78 @@ mdMap 是一个零依赖 CLI，将你的 markdown 文件索引为结构化 JSON 
 
 ## 为什么要有地图
 
-### 原始导航时代
+### 无地图时代：Agent 实际是怎么找文档的
 
-一座几百栋楼的城市。每栋楼的门上挂着一块门牌。门牌上可能写着 "auth_v3.md" 或 "publish_checklist.md"——是线索，但只是线索。楼真正的内容、墙上的警示、指向其他楼的方向——从街上看不见。
+一个项目里有几百篇 `.md`。Agent 要找发布指南。现实是这样的：
 
-在无地图的时代，Agent 用两种原始工具导航：
+**第一步 — 用 grep 搜内容。** Agent 有 grep 工具。不是搜文件名，而是搜文件**内容**。跑 `grep -rl "发布" docs/`，遍历每个文件的每一行，找出包含"发布"这个词的文件：
 
-**工具一：grep 门牌。** 跑 `grep -rl "publish" docs/`，指望对的楼正好叫这个名字。有时候能蒙对。大多数时候不能——对的那栋叫 "release_guide.md"，或者搜出来 40 栋楼包括 "publish_subscribe_pattern.md"，跟发布工具毫无关系。用文件名搜索是一场赌博，你押上的是 token。
+```
+publish_checklist.md           ← 完全正确
+auth_v3.md                     ← 某一行写着 "发布 token..."
+architecture_overview.md       ← 提了一句 "发布之后..."
+meeting_notes_2026-05.md       ← "讨论了发布流程时间线"
+deploy_guide.md                ← "与发布流程类似"
+release_guide.md               ← 真正的发布指南，但全文不说"发布"——它说的全是"release"
+```
 
-**工具二：推门进去赌。** 门牌不靠谱。走进一栋听起来像的。看墙上指示牌：*"如果要部署，见 Building D 的 CI/CD 指南。"* 不是他要的——但得进门才能看见。关门。走进第二栋。看墙：*"发布前先看 Building F 的安全策略。"* 不是发布指南，又一个路牌。关门。再走。再进。再看。
+grep 返回 20 条路径。有几条是完全匹配，有几条只是顺便提到这个词，有一条关键文档——`release_guide.md`——根本不可见，因为用的是不同的词。这就是**词汇错配**：Agent 搜"发布"，文档从头到尾说的是"release"。
 
-一次误入引向一块指向另一栋误入的牌子。每次进门消耗上下文 token。等终于找到真正的内容，已经进出十栋楼，循着墙上的路牌链穿过 .md 海洋。读的大部分内容不是你要的——只是路牌，告诉你再去哪。
+**第二步 — 逐个打开文件来验证。** Agent 没法从 grep 返回来判断这 20 个文件哪个真的相关。grep 只返回路径（最多附带断章取义的匹配行）。Agent 必须逐个打开文件来验证：
 
-**工具三：放弃筛选，全扫一遍。** grep 不灵，路牌链太长。Agent 打开所有看着沾边的文件。扫一眼。关。再开。再扫。再关。五个文件，二十个文件。任务还没开始，30% 的上下文窗口已经烧没了。
+```
+Read(auth_v3.md)              → 认证文档，只写了一句"发布 token" → 关掉。-2K tokens。
+Read(architecture_overview.md) → 架构文档，顺便提了一句 → 关掉。-1.5K tokens。
+Read(deploy_guide.md)          → 部署指南，"与发布流程类似" → 关掉。-2K tokens。
+Read(publish_checklist.md)     → 对了！这是发布检查清单 → 读完。-3K tokens。
+```
 
-这就是现状。grep 文件名、靠名字猜、进错楼、跟路牌、烧 token。勉强能用——但慢、浪费、每次重来。每个 session 每个 Agent 都在重复发明同样的导航路径。
+开了三扇错门，找对一扇。5.5K tokens 花在了不包含所需内容的文件上。
+
+**第三步 — 追踪隐藏的交叉引用。** 在 `publish_checklist.md` 里，Agent 读到：*"发布前先检查 security_policy.md 的安全策略。"* 又有：*"如果发布到 GitHub，参考 release_guide.md。"* Agent 继续打开这些文件。又是 4K tokens。这些交叉引用困在文档内部——不打开就不可见。
+
+**第四步 — 下次重来。** Agent B 明天开始类似的任务。grep "发布" → 20 条路径 → 打开 4 个文件 → 烧 10K tokens。Agent A 今天花的力气不传递。每个 Agent、每次 session，都在重复发明同样的导航路径。
+
+**算一笔账。** 一次典型的文档导航任务：
+
+| 阶段 | token 消耗 | Agent 真正需要的 |
+|------|----------|---------------|
+| grep | ~200 | 路径——只是线索 |
+| 打开错误的文件 | ~5,500 | 毫无用处 |
+| 追踪交叉引用 | ~4,000 | 有用，但靠运气发现 |
+| 读正确的文件 | ~3,000 | 真正的目标 |
+| **合计** | **~12,700** | **只有 3,000 是有效内容** |
+
+~76% 的上下文烧在导航上。Agent 不是在猜文件名——它确实在阅读。它只是反复阅读了错误的东西。
 
 ### 革命
 
-有人印了一张卡片。上面写着：
+mdMap 用一次查询取代整个流程：
 
-> `publish_checklist.md` — 发布工具到 GitHub 的分步指南
-> 门口牌子："发布工具"、"release"、"上线"
-> 指向：security_policy.md（发布前必须检查它）
+```
+mdmap find --search "发布"
+# [checklist]  publish_checklist.md  — 发布工具到 GitHub 的分步指南
+# [rule]       security_policy.md    — 所有发布操作的安全要求
+# [checklist]  release_guide.md      — 完整发布流程（GitHub releases、changelog、npm）
+```
 
-直奔那栋楼。一扇门。读到。结束。
+一条命令。三条结果。Agent 直接读到摘要——`publish_checklist.md` 就是它要的。打开那个文件。零扇错门。
 
-但这卡片是活的。每有 Agent 走过一条街，就往上加东西。Agent A 把 auth_v3.md 标为 `[rule]`，填上 triggers "认证变更"。Agent B 标注了 publish_checklist.md 指向 security_policy.md 的链接。Agent C 发现 auth_v2.md 里写着 "已被 auth_v3.md 替代"，标为 `[deprecated]`。
+但注意第三条结果：`release_guide.md`。grep 搜"发布"永远找不到它——"发布"这个词在这篇文档里没出现过。mdMap 找到它，是因为之前的 Agent 读过这篇文档，理解了它讲的是 **release**，然后在 triggers 字段里标注了"发布工具"。Agent 弥合了搜索词汇和文档用词之间的鸿沟。
 
-卡片现在能回答 grep 永远答不了的问题：
+以下是 mdMap 赋予每条结果的、grep 提供不了的信息：
 
-> "所有红旗建筑里跟 auth 有关的，列出来。"
-> "哪些楼指向安全策略？"
-> "有没有路牌指向已拆除的楼？"
-> "哪些楼上贴着 'draft' 牌？"
+| grep 返回 | mdMap 返回 |
+|----------|----------|
+| 裸文件路径 | 路径 + **类型标签**（`[rule]`、`[checklist]`）——一眼知道文档角色 |
+| 断章取义的匹配行 | **一句话摘要**——不打开就知道文档讲什么 |
+| 无状态信息 | **状态标签**（`[deprecated]`、`[draft]`、`[archived]`）——知道该不该读 |
+| 无关系数据 | **links**——地图记录了文档之间的指向关系，不进门就全看见 |
+| 无知识积累 | **累积索引**——Agent A 的标注，Agent B、C、D 永远受益 |
 
-**这就是变革。** grep 扫描门牌——从楼外猜里面有什么。mdMap 查询从楼内提取出来的语义内容。门牌回答 "文件名里有没有 'publish'？"。mdMap 回答 "发布工具的分步指南在哪，是现行版本还是已被废弃？"
+而且每有 Agent 走过就变得更好。Agent A 填了 publish_checklist.md 的 triggers。Agent B 加了指向 security_policy.md 的链接。Agent C 发现 auth_v2.md 已经 deprecated 并标记了它。索引有机增长——不在一次昂贵的全量遍历中完成，而是在 Agent 实际工作中一篇一篇地积累。
 
-地形——你的 .md 文件——纹丝不动。Go CLI（`init`、`find`、`validate`、`changed`）制作卡片、查询卡片、检查卡片。Agent 标注卡片。你还可以继续 grep。你还可以继续蒙着眼走。但你再也不必了。
+地形——你的 `.md` 文件——纹丝不动。Go CLI（`init`、`find`、`validate`、`changed`）制作卡片、查询卡片、检查卡片。Agent 标注卡片。你还可以继续 grep。你还可以继续直接读文件。但你再也不需要在导航上烧掉 76% 的上下文窗口了。
 
 ## 规则
 

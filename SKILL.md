@@ -11,44 +11,78 @@ mdMap is a zero-dependency CLI that builds a structured JSON index of your markd
 
 ## Why this exists
 
-### The primitive navigation era
+### The pre-map era: how agents find documents today
 
-There's a city with hundreds of buildings. Each building has a nameplate on the door. The nameplate might say "auth_v3.md" or "publish_checklist.md" — a hint, but just a hint. The actual content, the warnings on the wall, the directions to other buildings — all invisible from the street.
+There's a project with hundreds of `.md` files. An agent needs to find the publishing guide. Here's what actually happens:
 
-In the pre-map era, agents navigate with two crude tools:
+**Step 1 — grep the contents.** The agent has access to grep. Not just filenames — file **contents**. It runs `grep -rl "publish" docs/` which searches every line of every file for the word "publish" and returns the paths of matching files:
 
-**Tool 1: grep the nameplates.** They run `grep -rl "publish" docs/` hoping the right building has the word "publish" in its filename. Sometimes it works. Often it doesn't — the right building is called "release_guide.md", or the search returns 40 buildings including "publish_subscribe_pattern.md" which has nothing to do with publishing a tool. A filename search is a lottery. You bet tokens on a guess.
+```
+publish_checklist.md           ← exactly right
+auth_v3.md                     ← contains "publish token..." somewhere
+architecture_overview.md       ← mentions "after publish..."
+meeting_notes_2026-05.md       ← "discussed publish flow timeline"
+deploy_guide.md               ← "similar to publish flow"
+release_guide.md               ← the actual publishing guide, but this file never says "publish" — it says "release"
+```
 
-**Tool 2: enter and hope.** Nameplate didn't help. They walk into a building that *sounds* right. Read the signs on the wall: *"If you're deploying, see the CI/CD guide in Building D."* Not what they need — but they had to enter to read the sign. Close. Walk to another. Enter. Read: *"Before publishing, check the security policy in Building F."* Not the publishing guide itself — another direction. Close. Walk. Enter. Read. Close.
+The agent gets 20 paths back. Some are perfect matches. Some are documents that mention the word once in passing. One critical document — `release_guide.md` — is completely invisible because it uses different vocabulary. This is **vocabulary mismatch**: the agent searches for "publish", the document talks about "release".
 
-One wrong entry leads to a sign pointing to another wrong building. Each entrance costs context tokens. By the time they find the actual content, they've entered and exited ten buildings, following a chain of wall signs through the `.md` ocean. Most of what they read was navigation noise — not the content they needed, just signs telling them to go somewhere else.
+**Step 2 — open the candidates, one by one.** The agent can't tell which of these 20 files are relevant from grep output alone. grep returns paths (or at best, fragmented matching lines out of context). The agent must open each promising file to check:
 
-**Tool 3: give up and read everything.** When filename grep fails and the sign-following chain is too long, the agent opens every vaguely relevant file. Skims. Closes. Five files, twenty files. The task hasn't started yet and 30% of the context window is already gone.
+```
+Read(auth_v3.md)              → authentication doc, one mention of "publish token" → close. -2K tokens.
+Read(architecture_overview.md) → architecture doc, passing reference → close. -1.5K tokens.
+Read(deploy_guide.md)          → deployment guide, "similar to publish flow" → close. -2K tokens.
+Read(publish_checklist.md)     → YES, this is the publishing guide → read fully. -3K tokens.
+```
 
-This is the status quo. grep filenames, guess from names, enter wrong buildings, follow signs, burn tokens. It works — barely — but it's slow, wasteful, and repetitive. Every agent reinvents the same navigation, every session.
+Three wrong doors opened, one right one found. 5.5K tokens spent on doors that didn't contain what the agent needed.
+
+**Step 3 — follow the hidden signposts.** Inside `publish_checklist.md`, the agent reads: *"Before publishing, check the security policy in security_policy.md."* And: *"If you're releasing to GitHub, see release_guide.md."* The agent opens those too. Another 4K tokens. These cross-references were trapped inside the document — invisible until the agent opened it.
+
+**Step 4 — repeat everything next session.** Agent B starts a similar task tomorrow. grep "publish" → 20 paths → open 4 files → 10K tokens burned. No knowledge from Agent A's session carries over. Every agent reinvents the same navigation, every time.
+
+**The numbers.** For a typical documentation navigation task:
+
+| phase | tokens burned | what the agent actually needed |
+|-------|-------------|-------------------------------|
+| grep | ~200 | paths — only clues |
+| open wrong files | ~5,500 | nothing useful |
+| follow cross-refs | ~4,000 | useful, but discovered by accident |
+| read the right files | ~3,000 | the actual goal |
+| **total** | **~12,700** | **only 3,000 was useful content** |
+
+~76% of context spent on navigation. The agent isn't guessing from filenames — it's reading. It's just reading the wrong things first, over and over.
 
 ### The revolution
 
-Someone prints a card. On it:
+mdMap replaces this entire workflow with a single lookup:
 
-> `publish_checklist.md` — Step-by-step guide for releasing tools to GitHub
-> Sign on the door: "publishing a tool", "releasing", "shipping"
-> Points to: security_policy.md (must check before publishing)
+```
+mdmap find --search "publishing"
+# [checklist]  publish_checklist.md  — Step-by-step guide for releasing tools to GitHub
+# [rule]       security_policy.md    — Security requirements for all releases
+# [checklist]  release_guide.md      — Full release procedures (GitHub releases, changelog, npm)
+```
 
-They walk directly to that building. One door. Read. Done.
+One command. Three results. The agent reads the summaries inline — `publish_checklist.md` is exactly what it needs. It opens that file directly. Zero wrong doors.
 
-But the card is alive. Every agent who walks a street adds to it. Agent A labels auth_v3.md as `[rule]` with triggers for "authentication change". Agent B annotates the link from publish_checklist.md to security_policy.md. Agent C discovers that auth_v2.md says "superseded by auth_v3.md" and marks it `[deprecated]`.
+But look at the third result: `release_guide.md`. A grep for "publish" would never have found it — the word "publish" doesn't appear anywhere in that file. mdMap found it because a previous agent read the document, understood that it was about **releasing**, and annotated it with the trigger keyword "publishing a tool". The agent bridged the vocabulary gap between how people search and how documents are written.
 
-The card now answers questions grep never could:
+Here's what mdMap adds to every result that grep can't provide:
 
-> "Show me every red-flagged building (rule) near 'auth'."
-> "Which buildings point to the security policy?"
-> "Are there any signs pointing to demolished buildings?"
-> "Which buildings have 'draft' plaques?"
+| grep returns | mdMap returns |
+|-------------|--------------|
+| raw file path | path + **type tag** (`[rule]`, `[checklist]`) — you know the document's role at a glance |
+| fragmented matching lines | **one-sentence summary** — you know what the document is about without opening it |
+| no status information | **status label** (`[deprecated]`, `[draft]`, `[archived]`) — you know whether to read it or skip it |
+| no relationship data | **links** — the map tracks which documents point to which, all visible without entering any of them |
+| no knowledge accumulation | **cumulative index** — Agent A's annotation benefits Agent B, C, D forever |
 
-**This is the shift.** Grep scans nameplates — surface-level guesses about what's inside. mdMap queries semantic content extracted from inside the buildings. Nameplates answer "does this filename contain 'publish'?". mdMap answers "where is the step-by-step guide for releasing a tool, and is it the current version or deprecated?"
+And it gets better with every agent who walks through. Agent A filled in publish_checklist.md's triggers. Agent B added the link to security_policy.md. Agent C discovered auth_v2.md was deprecated and marked it. The index grows organically — not in one expensive pass, but document by document as agents encounter them during real work.
 
-The terrain — your `.md` files — is untouched. The Go CLI (`init`, `find`, `validate`, `changed`) makes the card, queries it, checks it. Agents annotate it. You can still grep if you want. You can still walk in blind. But you no longer have to.
+The terrain — your `.md` files — is untouched. The Go CLI (`init`, `find`, `validate`, `changed`) makes the card, queries it, checks it. Agents annotate it. You can still grep if you want. You can still read files directly. But you no longer have to spend 76% of your context window on navigation.
 
 ## The rule
 
