@@ -5,7 +5,7 @@ description: "Markdown document map. Index markdown files into a structured JSON
 
 # mdMap — Markdown Document Map
 
-mdMap is a zero-dependency CLI that indexes your markdown files into a structured JSON map, extracting constraints from inside documents to the surface.
+mdMap is a zero-dependency CLI that builds a structured JSON index of your markdown files — letting agents search by type, status, and semantic content without opening wrong documents.
 
 > **Markdown document index and query engine. Tell it what you're doing — find the right doc without burning LLM context on the wrong ones.**
 
@@ -15,7 +15,7 @@ You are an LLM agent working in a project with markdown documentation. Every tim
 
 The documents themselves contain the answer. They say things like "if you're publishing a tool, see this checklist" and "before modifying auth, read the v3 design doc." But you cannot see these instructions without opening the documents first. So you open files that look relevant. Skim. Close. Open more. A significant portion of your context window disappears just finding the right documents.
 
-mdMap solves this by reading every document once, extracting what each document should have been able to announce about itself, and storing it in a JSON index. From that point on, you query the index instead of scanning directories. You spend zero tokens on navigation.
+mdMap solves this by building a structured JSON index. Agents enrich it when they naturally encounter documents. From that point on, you query the index instead of scanning directories. You spend zero tokens on navigation.
 
 ## The rule you must follow
 
@@ -151,8 +151,7 @@ mdmap find --trigger "auth" --json
 ### Checking index health
 
 ```bash
-mdmap validate          # orphans, broken links, file moves, stale refs
-mdmap validate --fix    # auto-update moved document paths in mdMap.json
+mdmap validate          # orphans, broken links, cycles, stale refs
 mdmap validate --strict # CI gate
 ```
 
@@ -168,7 +167,7 @@ You are not just a consumer of the index — you are also its maintainer. Help k
 
 **After `mdmap validate` reports orphans:** new documents exist on disk but are not in the index. Read SCHEMA.md, then read each orphan document, extract its semantic fields, and write them into mdMap.json. Update SCHEMA.md's Project Convention section if you introduce new type/status/tag values.
 
-**After `mdmap changed` reports modifications:** a document's content has changed. Its hash no longer matches. Re-read the document, update its semantic fields, update the hash.
+**After `mdmap changed` reports changes:** documents were added to or deleted from disk. If new docs appeared, read SCHEMA.md, then read each new document, evaluate its semantic fields, and write them into mdMap.json.
 
 **When you create a new document:** don't just write the file. Also add its entry to mdMap.json with the semantic fields filled in, and run `mdmap validate` to confirm nothing is broken.
 
@@ -176,7 +175,7 @@ You are not just a consumer of the index — you are also its maintainer. Help k
 
 The project maintains a strict separation:
 
-- **LLM reads documents, writes the index.** One read per document. Semantic extraction.
-- **Code validates the index.** Deterministic checks. Zero LLM involvement.
+- **Agents read documents, maintain the index.** Evaluate and update metadata when you naturally encounter documents during work.
+- **Go code manages structure.** Which files exist, whether they're on disk — that's `init`/`changed`/`validate`'s job. Deterministic checks, zero LLM.
 
-You are in the LLM role. You do the extraction. The CLI does the verification. Trust `validate` — it catches mistakes you might make (broken links, stale references). Run it after every update.
+You are in the Agent role. You evaluate and fill the metadata. The CLI does the structural verification. Trust `validate` — it catches mistakes you might make (broken links, stale references). Run it after every update.

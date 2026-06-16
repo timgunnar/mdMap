@@ -151,8 +151,7 @@ mdmap find --trigger "认证" --json
 ### 检查索引健康
 
 ```bash
-mdmap validate          # 孤儿、断裂链接、文件移动、陈旧引用
-mdmap validate --fix    # 自动更新 mdMap.json 中被移动的文档路径
+mdmap validate          # 孤儿、断裂链接、环路、陈旧引用
 mdmap validate --strict # CI 门禁
 ```
 
@@ -168,7 +167,7 @@ mdmap changed           # 上次索引以来发生了什么变化
 
 **`mdmap validate` 报告了孤儿文件：** 磁盘上有新文档但索引里没有。先读 SCHEMA.md，然后逐个读孤儿文档，提取语义字段，写入 mdMap.json。如果引入了新的 type/status/tag 值，更新 SCHEMA.md 的项目惯例部分。
 
-**`mdmap changed` 报告了文件修改：** 文档内容变了，hash 不再匹配。重读文档，更新语义字段和 hash。
+**`mdmap changed` 报告了文件变化：** 磁盘上新增或删除了文档。如果有新增，读 SCHEMA.md 后逐个读新文档，评估语义字段，写入 mdMap.json。
 
 **你创建了新文档：** 不要只写文件。同时在 mdMap.json 里添加条目，填好语义字段，然后跑 `mdmap validate` 确认没破坏任何东西。
 
@@ -177,6 +176,6 @@ mdmap changed           # 上次索引以来发生了什么变化
 这个项目保持严格的职责分离：
 
 - **LLM 读文档，写索引。** 每篇文档读一次。语义提取。
-- **代码验证索引。** 确定性检查。零 LLM 参与。
+- **Go 代码管理结构。** mdMap.json 里有什么文件、文件在不在——这是 `init`/`changed`/`validate` 的职责。确定性检查，零 LLM。
 
 你在 LLM 角色里。你做提取。CLI 做验证。信任 `validate`——它会捕获你可能犯的错误（断裂链接、陈旧引用）。每次更新后都跑一遍。

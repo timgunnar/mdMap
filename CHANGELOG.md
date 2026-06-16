@@ -17,18 +17,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `find --retires <text>` — find documents by retirement-trigger condition
 - `find --type <text>` — filter by document type (rule, resource, or project-specific)
 - `find --tag <text>` — filter by tag (exact match)
-- `find --status <text>` — filter by status (active, deprecated, draft, archived, unread)
+- `find --status <text>` — filter by status (active, deprecated, draft, archived)
 - `find --json` — machine-readable output mode
-- `validate` — 5 integrity checks: disk↔index bidirectional, file move detection, broken links, link cycles, stale links
-- `validate --fix` — auto-fix file moves in mdMap.json
+- `validate` — 4 integrity checks: disk↔index bidirectional, broken links, link cycles, stale links
 - `validate --strict` — treat warnings as errors (CI gate)
-- `changed` — detect added, modified, moved, and deleted documents since last index
+- `changed` — detect added and deleted documents since last index
 - Structured document model: title, type, summary, positioning, status, tags, links, triggers, maintains, retires
 - Predefined types: `rule` (constraint documents agents must follow), `resource` (standalone reference)
-- Predefined statuses: `active`, `deprecated`, `draft`, `archived` (four core)
 - Two-track design: mdMap is a map, not a substitute for direct file access. Agents always open files the normal way; mdMap tells them which one to open
 - Progressive indexing: agents fill in document metadata (type, summary, triggers, links) when they naturally encounter documents during work
-- Streaming I/O: `extractTitle` uses `bufio.Scanner`, `computeHash` uses `io.Copy` → `md5.New`. Won't OOM on large files
 - SCHEMA.md — LLM-readable field reference for maintaining the index, includes predefined enums
 - `_ext` field — transparent passthrough for project-specific extensions
 - Cross-platform Go binary, zero dependencies

@@ -36,7 +36,7 @@ go install github.com/timgunnar/mdMap@latest
 mdmap init ./docs
 ```
 
-`init` 扫描每个 `.md` 文件，提取标题和 hash，写入 `mdMap.json` + `SCHEMA.md`。语义字段——每篇文档讲什么、什么时候读、什么时候更新——留空。让 LLM 填一次。
+`init` 扫描目录结构，写入 `mdMap.json` + `SCHEMA.md`。不打开任何 md 文件——只列出文件名。所有语义字段——每篇文档讲什么、什么时候读、什么时候更新——留空。Agent 在实际工作中遇到文档时再填充。
 
 ```bash
 # 让 LLM 丰富索引：
@@ -58,11 +58,11 @@ mdmap find --type checklist --tag "发布"          # 过滤搜索
 
 **它索引的不是关键词，是约束。** 文档自己写了什么时候该读它——"如果准备发布工具，看这份检查清单"。问题是你不打开文件就看不到这句话。mdMap 提取这些指令，让它们可查询。
 
-**LLM 过一遍，之后全是代码。** LLM 每篇文档只读一次，提取语义。之后所有查询跑编译好的 Go 代码——O(1) 查找，零 token，零猜测。`validate` 跑五项确定性检查（孤儿检测、文件移动追踪、断裂链接、循环检测、陈旧引用），零 LLM 参与。
+**LLM 过一遍，之后全是代码。** Agent 在工作中自然地遇到文档时，评估并更新语义字段。之后所有查询跑编译好的 Go 代码——O(1) 查找，零 token，零猜测。`validate` 跑四项确定性检查（孤儿检测、断裂链接、循环检测、陈旧引用），零 LLM 参与。
 
 **你的术语，不是我们的。** 不写死文档类型。不限制状态值。软件项目可以标 `checklist`、`architecture`、`api_spec`。写小说的用 `character_profile`、`chapter_outline`、`world_setting`。mdMap 从 SCHEMA.md 学会你的词汇，然后保持一致。
 
-**人类会移动文件。mdMap 替你处理。** 重命名文件夹，重新组织文档——`validate` 通过 hash 交叉匹配检测移动。`--fix` 自动更新索引。没有断裂路径。不需要手工清理。
+**双轨制。** mdMap 是地图，不是文件阅读的替代品。Agent 始终直接读文件。mdMap 只告诉你该读哪一个。文件移动、重命名？重跑 `mdmap init` 一键同步。
 
 ## 你看不到的索引
 

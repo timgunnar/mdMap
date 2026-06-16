@@ -36,7 +36,7 @@ go install github.com/timgunnar/mdMap@latest
 mdmap init ./docs
 ```
 
-`init` scans every `.md` file, extracts titles and hashes, and writes `mdMap.json` + `SCHEMA.md`. The semantic fields — what each document is about, when to read it, when to update it — are empty. An LLM fills them, once.
+`init` scans the directory structure and writes `mdMap.json` + `SCHEMA.md`. It never opens .md files — just lists filenames. The semantic fields — what each document is about, when to read it, when to update it — start empty. Agents fill them when they naturally encounter documents during work.
 
 ```bash
 # Ask your LLM to enrich the index:
@@ -58,11 +58,11 @@ mdmap find --type checklist --tag "publish"     # filtered search
 
 **It indexes constraints, not keywords.** A document already tells you when to read it — "if you're publishing a tool, see this checklist." The problem is you can't see that instruction without opening the file. mdMap extracts those instructions and makes them queryable.
 
-**One LLM pass, then pure code.** The LLM reads each document exactly once to extract semantic fields. After that, every query runs in compiled Go — O(1) lookups, zero tokens, zero guesswork. `validate` runs five deterministic checks (orphan detection, file move tracking via hash cross-match, broken links, cycles, stale references) with no LLM involvement.
+**One LLM pass, then pure code.** Agents evaluate and update semantic fields when they naturally encounter documents during work. After that, every query runs in compiled Go — O(1) lookups, zero tokens, zero guesswork. `validate` runs four deterministic checks (orphan detection, broken links, cycles, stale references) with no LLM involvement.
 
 **Your conventions, not ours.** No hardcoded document types. No restricted status values. A software project might tag documents `checklist`, `architecture`, `api_spec`. A fiction writer might use `character_profile`, `chapter_outline`, `world_setting`. mdMap learns your vocabulary from SCHEMA.md and stays consistent.
 
-**Humans move files. mdMap handles it.** Rename a folder, reorganize your docs — `validate` detects the move via hash matching. `--fix` updates the index automatically. No broken paths. No manual cleanup.
+**Two tracks.** mdMap is a map, not a substitute for direct file access. Agents always open files normally. mdMap just tells them which one. Moved files? Reorganized folders? `mdmap init` re-syncs in one command.
 
 ## The index you never see
 
