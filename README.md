@@ -12,18 +12,24 @@ This happens every time. Whether you're a developer working with an AI agent, a 
 
 **Every library has a catalog. Every database has an index. Your markdown files have neither.** Until now.
 
-mdMap is that catalog. You point it at a directory, it reads every document once, and builds a structured index. Not a full-text search — a map that understands what each document covers, when you should read it, and which documents it connects to. After indexing, you never scan directories again. You ask a question. You get a path. You open that file. Done.
+mdMap is that catalog. You point it at a directory, it scans the directory structure and builds a structured index — it never opens .md files, just lists filenames. Not a full-text search — a map that agents annotate as they naturally encounter documents, recording what each document covers, when you should read it, and which documents it connects to. After indexing, you never scan directories again. You ask a question. You get a path. You open that file. Done.
 
 ```
 Before:
   Task: "publish a new CLI tool"
-  → Scan docs/tools/ → Open 5 files → Skim → Close 3 → Read 2
-  → ~15K tokens burned on navigation
+  → grep -rl "publish" docs/ → 20 files hit
+  → Open auth.md (authentication doc, one mention) → close
+  → Open deploy.md (deployment guide, passing reference) → close
+  → Open 3rd file: publish_checklist.md — finally right
+  → Inside: "before publishing, check security_policy.md" → open that too
+  → ~12K tokens burned on navigation (only 3K was useful content)
 
 After:
-  mdmap find --trigger "publishing a CLI tool"
-  → publish_checklist.md
-  → ~3K tokens. Total.
+  mdmap find --search "publishing"
+  → [checklist]  publish_checklist.md  — Step-by-step guide for releasing to GitHub
+  → [rule]       security_policy.md    — Security requirements for all releases
+  → [checklist]  release_guide.md      — Full release procedures
+  → Read three summaries, open what you need. ~3K tokens. Total.
 ```
 
 ## It works like this
@@ -85,7 +91,9 @@ Trigger-based match:    ~200B
 | `find --maintains <text>` | "What needs updating after this change?" |
 | `find --retires <text>` | "What can be safely archived?" |
 | `find --type <text>` | Filter by document type |
+| `find --status <text>` | Filter by document status |
 | `find --tag <text>` | Filter by tag |
+| `find --json` | Machine-readable JSON output |
 | `validate` | Integrity checks: orphans, broken links, cycles, stale links |
 | `changed` | What changed on disk since last index (new + deleted) |
 

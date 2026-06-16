@@ -12,18 +12,24 @@
 
 **每座图书馆都有目录。每个数据库都有索引。你的 Markdown 文件什么都没有。** 直到现在。
 
-mdMap 就是这层目录。你指给它一个文件夹，它读一遍所有文档，构建结构化索引。不是全文搜索——是一张地图，知道每篇文档覆盖什么范围、什么场景该读它、它和哪些文档有关联。构建完之后，你再也不扫目录。提一个问题。拿到一个路径。打开那个文件。完成。
+mdMap 就是这层目录。你指给它一个文件夹，它扫描目录结构，构建结构化索引——不打开任何 md 文件，只列出文件名。不是全文搜索——是一张地图，Agent 在实际工作中自然地遇到文档时标注每篇文档的覆盖范围、什么场景该读它、它和哪些文档有关联。构建完之后，你再也不扫目录。提一个问题。拿到一个路径。打开那个文件。完成。
 
 ```
 之前：
   任务："发布一个新的 CLI 工具"
-  → 扫描 docs/tools/ → 打开 5 个文件 → 翻 → 关掉 3 个 → 读 2 个
-  → 导航烧掉 15K tokens
+  → grep -rl "发布" docs/ → 20 个文件命中
+  → 逐个打开验证：auth.md（认证文档，一行提及）→ 关掉
+  → deploy.md（部署指南，顺带提及）→ 关掉
+  → 打开第 3 个才发现 publish_checklist.md
+  → 里面写着"发布前先看 security_policy.md" → 再打开
+  → 导航烧掉 ~12K tokens（只有 3K 是有效内容）
 
 之后：
-  mdmap find --trigger "发布 CLI 工具"
-  → publish_checklist.md
-  → ~3K tokens。全部。
+  mdmap find --search "发布"
+  → [checklist]  publish_checklist.md  — 发布到 GitHub 的分步指南
+  → [rule]       security_policy.md    — 所有发布操作的安全要求
+  → [checklist]  release_guide.md      — 完整发布流程
+  → 读完三条摘要，打开需要的。~3K tokens。全部。
 ```
 
 ## 三分钟上手
@@ -85,7 +91,9 @@ mdmap find --type checklist --tag "发布"          # 过滤搜索
 | `find --maintains <文本>` | "这次变更后什么该更新？" |
 | `find --retires <文本>` | "什么可以安全归档？" |
 | `find --type <文本>` | 按文档类型过滤 |
+| `find --status <文本>` | 按文档状态过滤 |
 | `find --tag <文本>` | 按标签过滤 |
+| `find --json` | 机器可读 JSON 输出 |
 | `validate` | 完整性检查：孤儿检测、断裂链接、环路、陈旧链接 |
 | `changed` | 磁盘上文件增删变化（new + deleted） |
 
