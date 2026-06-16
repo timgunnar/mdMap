@@ -78,7 +78,7 @@ Trigger-based match:    ~200B
 
 | Command | What it does |
 |:--|:--|
-| `init <dir>` | Idempotent two-way sync — never overwrites metadata. Self-contained, no git dependency |
+| `init <dir>` | Idempotent two-way sync — never opens .md files. All fields start empty |
 | `find <path>` | Exact document lookup (O(1)) |
 | `find --search <text>` | Filter by semantic fields (title/summary/positioning) |
 | `find --trigger <text>` | "What should I read for this task?" |
@@ -86,9 +86,8 @@ Trigger-based match:    ~200B
 | `find --retires <text>` | "What can be safely archived?" |
 | `find --type <text>` | Filter by document type |
 | `find --tag <text>` | Filter by tag |
-| `validate` | Integrity checks: orphans, file moves, broken links, cycles, stale links |
-| `validate --fix` | Auto-fix detected file moves |
-| `changed` | What changed since the last index |
+| `validate` | Integrity checks: orphans, broken links, cycles, stale links |
+| `changed` | What changed on disk since last index (new + deleted) |
 
 All in a single Go binary. No dependencies. Starts in under a millisecond.
 

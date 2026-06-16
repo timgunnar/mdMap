@@ -78,7 +78,7 @@ mdmap find --type checklist --tag "发布"          # 过滤搜索
 
 | 命令 | 做什么 |
 |:--|:--|
-| `init <dir>` | 可重入双向同步——永不覆盖元数据。自包含，不依赖 git |
+| `init <dir>` | 可重入双向同步——不打开 md 文件，所有字段从空开始 |
 | `find <path>` | 精确查找（O(1)） |
 | `find --search <文本>` | 语义字段模糊匹配（标题/摘要/定位） |
 | `find --trigger <文本>` | "这个任务该读什么？" |
@@ -86,9 +86,8 @@ mdmap find --type checklist --tag "发布"          # 过滤搜索
 | `find --retires <文本>` | "什么可以安全归档？" |
 | `find --type <文本>` | 按文档类型过滤 |
 | `find --tag <文本>` | 按标签过滤 |
-| `validate` | 完整性检查：孤儿、移动、断裂、循环、陈旧 |
-| `validate --fix` | 自动修复检测到的文件移动 |
-| `changed` | 上次索引以来发生了什么变化 |
+| `validate` | 完整性检查：孤儿检测、断裂链接、环路、陈旧链接 |
+| `changed` | 磁盘上文件增删变化（new + deleted） |
 
 单 Go 二进制。零依赖。启动不到一毫秒。
 

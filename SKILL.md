@@ -86,7 +86,7 @@ When you see `[rule]` → open it first. You must follow its constraints. When y
 
 ## Document status system
 
-mdMap predefines five core statuses that you must use consistently:
+mdMap predefines four core statuses that you must use consistently:
 
 | status | meaning | agent behavior |
 |--------|---------|---------------|
@@ -94,7 +94,6 @@ mdMap predefines five core statuses that you must use consistently:
 | **`deprecated`** | replaced or no longer applicable | **Do not use as primary reference.** Search output shows `[deprecated]` warning |
 | **`draft`** | work in progress, content may change | **Consult for direction only.** Not final authority |
 | **`archived`** | historical record, kept for reference | **Do not open proactively.** Only when the user explicitly asks |
-| **`unread`** | never indexed — mdMap knows title only | **Index it when you first read it.** See progressive indexing below |
 
 `active` is not shown in search output (it's the default — no noise). Non-active statuses are labeled:
 
@@ -103,47 +102,7 @@ mdmap find --search "auth migration"
 # [checklist]   auth_migration_v3.md   — Current auth migration checklist (v3)
 # [checklist]  [deprecated]  auth_migration_v2.md  — Old auth migration checklist (v2)
 # [guide]      [draft]  auth_migration_v4.md  — New auth migration guide (drafting)
-# [unread]      novel_chapter_42.md  — Chapter 42
 ```
-
-## Progressive indexing
-
-mdMap is NOT a one-shot index. It improves every time you read a document.
-
-**`init` is an idempotent two-way sync.** It never overwrites existing metadata — adds new files, removes deleted files, updates hashes only. Safe to re-run anytime:
-
-```bash
-mdmap init ./docs
-# mdMap: synced 152 documents in ./docs
-#   +3 -1 ~2
-#   147 unread (≥50KB) — will be indexed when first read
-```
-
-- `+3`: 3 new .md files on disk
-- `-1`: 1 .md file deleted from disk
-- `~2`: 2 existing files changed (hash updated)
-- All existing metadata (type, summary, triggers, links, etc.) preserved
-
-mdMap is self-contained — no dependency on git. It discovers files via filesystem walk, detects changes via content hashing. Works identically whether or not git is installed.
-
-**Your job**: when you read an `unread` document (for any task, via any method — not just mdMap), update its entry afterward:
-
-```bash
-# Before: document is [unread], only title populated
-# After reading it for a task:
-#   "This is a 60KB world-building document about Elven history"
-# → update mdMap.json:
-#   type → "resource"
-#   status → "archived"
-#   summary → "Elven history and culture world-building reference"
-#   hash → md5sum of current file content
-```
-
-**Don't batch-index the entire project.** Index what you naturally encounter. An unread document has zero value in being indexed if no agent has ever needed it. When it IS needed, you'll read it — and index it then.
-
-This is the same as lazy-loading: the index grows organically as agents do real work.
-
-**When indexing:** current authoritative doc → `active`. Replaced → `deprecated` and fill retires. Work in progress → `draft`. Historical record → `archived`.
 
 ## When to use mdMap vs direct file access
 
@@ -154,12 +113,13 @@ mdMap is a navigation layer, not a replacement for file I/O. **You always open a
 | Don't know which document to read | **mdMap** `find --search --type` | Locate first, then open |
 | Already know the file path | **Open file directly** | mdMap is middleware; skip if you know the target |
 | Need to find all applicable rules | **mdMap** `find --type rule` | Exact type filter → 2-5 results |
-| mdMap returns `[unread]` document | **Open file directly**, then update mdMap.json | Progressive indexing |
-| File doesn't exist yet, creating new | **Create directly** | `init` or `changed` will pick it up |
-| Verify document graph integrity | **mdMap** `validate` | Five deterministic checks, zero LLM |
-| See what changed recently | **mdMap** `changed` | Hash comparison, instant results |
+| File doesn't exist yet, creating new | **Create directly** | `init` will pick it up next run |
+| Verify document graph integrity | **mdMap** `validate` | Four deterministic checks, zero LLM |
+| See what changed on disk | **mdMap** `changed` | new: + deleted: — instant diff |
 
-Core principle: **mdMap prevents mistakes (missing a rule), not extra work (reading extra files).** If mdMap tells you `[rule] publish_guide.md`, you open it directly. No intermediate steps needed.
+**Core design**: `mdmap init` does NOT open .md files. It only lists directory entries. All fields start empty. You fill them in when you encounter documents during real work. This is the two-track approach: mdMap is a map (you can use it), not a substitute for reading files directly (you always can).
+
+**Your job**: when you read an `init`-stub document (for any task, via any method), update its entry in mdMap.json afterward — fill in type, summary, triggers, links, etc. The index grows organically as agents do real work.
 
 ## Commands you will use
 

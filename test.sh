@@ -125,7 +125,7 @@ pass "semantic data injected"
 echo -e "\n${CYAN}=== 3. find — exact lookup ===${NC}"
 
 result=$(rundir "$BIN" find architecture.md 2>&1)
-if echo "$result" | grep -q "Architecture Overview"; then pass "find by path returns title"; else fail "find by path: $result"; fi
+if echo "$result" | grep -q "path: architecture.md"; then pass "find by path returns path"; else fail "find by path: $result"; fi
 
 jsonout=$(cd "$DOCSDIR" && "$BIN" find architecture.md --json 2>/dev/null)
 if [ -n "$jsonout" ] && echo "$jsonout" | grep -q 'architecture'; then pass "find --json valid"; else fail "find --json invalid"; fi
@@ -209,31 +209,9 @@ if echo "$result" | grep -q "EXIT:1"; then pass "validate exits 1 on orphan"; el
 rm "$DOCSDIR/unregistered.md"
 
 # ============================================================
-# Test: validate — file move + --fix
-# ============================================================
-echo -e "\n${CYAN}=== 8. validate — file move + --fix ===${NC}"
-
-mkdir -p "$DOCSDIR/subdir"
-mv "$DOCSDIR/auth_v3.md" "$DOCSDIR/subdir/auth_v3.md"
-
-result=$(rundir "$BIN" validate 2>&1; echo "EXIT:$?")
-if echo "$result" | grep -q "moves"; then pass "validate detects moves"; else fail "move missed: $result"; fi
-
-rundir "$BIN" validate --fix > /dev/null 2>&1 || true
-moved=$(python3 -c "import json; d=json.load(open('$DOCSDIR/mdMap.json')); print('subdir/auth_v3.md' in d['docs'])")
-[ "$moved" = "True" ] && pass "--fix updated index" || fail "--fix missed: $moved"
-old=$(python3 -c "import json; d=json.load(open('$DOCSDIR/mdMap.json')); print('auth_v3.md' in d['docs'])")
-[ "$old" = "False" ] && pass "--fix removed old key" || fail "--fix kept old key"
-
-# move back
-mv "$DOCSDIR/subdir/auth_v3.md" "$DOCSDIR/auth_v3.md"
-rmdir "$DOCSDIR/subdir"
-rundir "$BIN" validate --fix > /dev/null 2>&1 || true
-
-# ============================================================
 # Test: validate — broken links
 # ============================================================
-echo -e "\n${CYAN}=== 9. validate — broken links ===${NC}"
+echo -e "\n${CYAN}=== 8. validate — broken links ===${NC}"
 
 python3 << PYEOF
 import json
@@ -255,7 +233,7 @@ PYEOF
 # ============================================================
 # Test: validate — stale links
 # ============================================================
-echo -e "\n${CYAN}=== 10. validate — stale links ===${NC}"
+echo -e "\n${CYAN}=== 9. validate — stale links ===${NC}"
 
 python3 << PYEOF
 import json
@@ -280,7 +258,7 @@ PYEOF
 # ============================================================
 # Test: validate — cycle detection
 # ============================================================
-echo -e "\n${CYAN}=== 11. validate — cycles ===${NC}"
+echo -e "\n${CYAN}=== 10. validate — cycles ===${NC}"
 
 python3 << PYEOF
 import json
@@ -302,7 +280,7 @@ PYEOF
 # ============================================================
 # Test: validate --strict
 # ============================================================
-echo -e "\n${CYAN}=== 12. validate --strict ===${NC}"
+echo -e "\n${CYAN}=== 11. validate --strict ===${NC}"
 
 python3 << PYEOF
 import json
@@ -325,11 +303,10 @@ with open("$DOCSDIR/mdMap.json", "w") as f: json.dump(m, f, indent=2)
 PYEOF
 
 # ============================================================
-# Test: changed — new/modified/deleted/moved
+# Test: changed — new/deleted
 # ============================================================
-echo -e "\n${CYAN}=== 13. changed — all states ===${NC}"
+echo -e "\n${CYAN}=== 12. changed — new/deleted ===${NC}"
 
-# rebuild clean index
 "$BIN" init "$DOCSDIR" > /dev/null
 python3 << PYEOF
 import json
@@ -340,81 +317,51 @@ for k in m["docs"]:
 with open("$DOCSDIR/mdMap.json", "w") as f: json.dump(m, f, indent=2)
 PYEOF
 
-# new file (not yet indexed → should show as new)
 cat > "$DOCSDIR/new_doc.md" << 'EOF'
 # New Document
 EOF
 result=$(rundir "$BIN" changed 2>&1)
 echo "$result" | grep -q "new: new_doc.md" && pass "changed detects new" || fail "changed new: $result"
 
-# add to index so we can test deletion
-hash=$(python3 -c "import hashlib; print(hashlib.md5(open('$DOCSDIR/new_doc.md','rb').read()).hexdigest())")
-python3 << PYEOF
-import json
-with open("$DOCSDIR/mdMap.json") as f: m = json.load(f)
-m["docs"]["new_doc.md"] = {"title":"New Document","hash":"$hash","type":"test","status":"active"}
-with open("$DOCSDIR/mdMap.json", "w") as f: json.dump(m, f, indent=2)
-PYEOF
-
-# modified
-echo "modified" >> "$DOCSDIR/architecture.md"
-result=$(rundir "$BIN" changed 2>&1)
-echo "$result" | grep -q "modified: architecture.md" && pass "changed detects modified" || fail "changed modified: $result"
-
-# deleted
+"$BIN" init "$DOCSDIR" > /dev/null
 rm "$DOCSDIR/new_doc.md"
 result=$(rundir "$BIN" changed 2>&1)
 echo "$result" | grep -q "deleted: new_doc.md" && pass "changed detects deleted" || fail "changed deleted: $result"
 
-# moved
-mkdir -p "$DOCSDIR/renamed"
-mv "$DOCSDIR/deprecated_migration.md" "$DOCSDIR/renamed/deprecated_migration.md"
-result=$(rundir "$BIN" changed 2>&1)
-echo "$result" | grep -q "moved:" && pass "changed detects moved" || fail "changed moved: $result"
-
-# cleanup
-mv "$DOCSDIR/renamed/deprecated_migration.md" "$DOCSDIR/deprecated_migration.md"
-rmdir "$DOCSDIR/renamed"
-python3 -c "
-open('$DOCSDIR/architecture.md','w').write('# Architecture Overview\n\nThe system follows a layered architecture.\n\nFor authentication details, see auth_v3.md.\n')
-"
+"$BIN" init "$DOCSDIR" > /dev/null
 
 # ============================================================
-# Test: init — unread for large files
+# Test: init — all fields empty (no file reading)
 # ============================================================
-echo -e "\n${CYAN}=== 14. init — unread status ===${NC}"
+echo -e "\n${CYAN}=== 13. init — zero file I/O ===${NC}"
 
-UNREAD_DIR="$TESTDIR/unread_test"
-mkdir -p "$UNREAD_DIR"
-echo "# Small Rules" > "$UNREAD_DIR/small_rules.md"
-# create a 52KB file (hash=skip, status=unread)
-dd if=/dev/zero of="$UNREAD_DIR/big_novel.md" bs=1024 count=52 2>/dev/null
-echo "# Big Novel" > "$UNREAD_DIR/big_novel.md"
-dd if=/dev/zero bs=1024 count=51 >> "$UNREAD_DIR/big_novel.md" 2>/dev/null
+ZERO_DIR="$TESTDIR/zero_test"
+mkdir -p "$ZERO_DIR"
+echo "# Rules Doc" > "$ZERO_DIR/rules.md"
+echo "# Big Novel Chapter 42: The Return" > "$ZERO_DIR/novel.md"
+dd if=/dev/zero bs=1024 count=52 >> "$ZERO_DIR/novel.md" 2>/dev/null
 
-rundir "$BIN" init "$UNREAD_DIR" >/dev/null
+rundir "$BIN" init "$ZERO_DIR" >/dev/null
 
-is_unread=$(python3 -c "import json; d=json.load(open('$UNREAD_DIR/mdMap.json')); doc=d['docs'].get('big_novel.md',{}); print(doc.get('status',''))")
-if [ "$is_unread" = "unread" ]; then pass "large file marked unread"; else fail "large file status: $is_unread (expected unread)"; fi
+all_empty=$(python3 -c "
+import json
+d=json.load(open('$ZERO_DIR/mdMap.json'))
+for k,v in d['docs'].items():
+    t=v.get('title',''); ty=v.get('type',''); s=v.get('summary','')
+    st=v.get('status','')
+    if t or ty or s or st:
+        print('NOT_EMPTY:'+k)
+        exit()
+print('ALL_EMPTY')
+")
+if [ "$all_empty" = "ALL_EMPTY" ]; then pass "init: all fields empty (no file reads)"; else fail "init fields: $all_empty"; fi
 
-hash_val=$(python3 -c "import json; d=json.load(open('$UNREAD_DIR/mdMap.json')); doc=d['docs'].get('big_novel.md',{}); print(doc.get('hash',''))")
-if [ "$hash_val" = "" ]; then pass "unread doc has empty hash"; else fail "unread doc has hash: $hash_val"; fi
-
-small_status=$(python3 -c "import json; d=json.load(open('$UNREAD_DIR/mdMap.json')); doc=d['docs'].get('small_rules.md',{}); print(doc.get('status',''))")
-if [ "$small_status" = "" ]; then pass "small file NOT marked unread"; else fail "small file has status: $small_status"; fi
-
-small_hash=$(python3 -c "import json; d=json.load(open('$UNREAD_DIR/mdMap.json')); doc=d['docs'].get('small_rules.md',{}); print(doc.get('hash','') != '')")
-if [ "$small_hash" = "True" ]; then pass "small file has hash"; else fail "small file missing hash"; fi
-
-result=$(rundir "$BIN" find --dir "$UNREAD_DIR" --status unread 2>&1)
-if echo "$result" | grep -q "big_novel.md"; then pass "find --status unread works"; else fail "find unread: $result"; fi
-
-rm -rf "$UNREAD_DIR"
+rm -rf "$ZERO_DIR"
 
 # ============================================================
 # Test: init — re-run preserves metadata, detects adds/deletes
 # ============================================================
-echo -e "\n${CYAN}=== 15. init — idempotent resync ===${NC}"
+echo -e "\n${CYAN}=== 14. init — idempotent resync ===${NC}"
 
 SYNC_DIR="$TESTDIR/sync_test"
 mkdir -p "$SYNC_DIR"
@@ -454,7 +401,7 @@ rm -rf "$SYNC_DIR"
 # ============================================================
 # Test: init — git-ignored files ARE indexed (mdMap owns all md)
 # ============================================================
-echo -e "\n${CYAN}=== 16. init — git-independent ===${NC}"
+echo -e "\n${CYAN}=== 15. init — git-independent ===${NC}"
 
 IGN_DIR="$TESTDIR/ign_test"
 mkdir -p "$IGN_DIR"

@@ -1,15 +1,11 @@
 package main
 
 import (
-	"bufio"
-	"crypto/md5"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 )
@@ -30,7 +26,6 @@ type Doc struct {
 	Triggers    []string               `json:"triggers"`
 	Maintains   []string               `json:"maintains"`
 	Retires     []string               `json:"retires"`
-	Hash        string                 `json:"hash"`
 	Ext         map[string]interface{} `json:"_ext,omitempty"`
 }
 
@@ -92,40 +87,9 @@ func saveMap(m *MapFile, rootDir string) error {
 	return os.WriteFile(filepath.Join(rootDir, "mdMap.json"), data, 0644)
 }
 
-const sizeThreshold = 51200
-
-func computeHash(path string) string {
-	f, err := os.Open(path)
-	if err != nil {
-		return ""
-	}
-	defer f.Close()
-	h := md5.New()
-	io.Copy(h, f)
-	return fmt.Sprintf("%x", h.Sum(nil))
-}
-
-var h1Pattern = regexp.MustCompile(`^#\s+(.+)$`)
-
-func extractTitle(path string) string {
-	f, err := os.Open(path)
-	if err != nil {
-		return ""
-	}
-	defer f.Close()
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		m := h1Pattern.FindStringSubmatch(strings.TrimRight(scanner.Text(), "\r"))
-		if len(m) == 2 {
-			return strings.TrimSpace(m[1])
-		}
-	}
-	return ""
-}
-
 type diskFileInfo struct {
-	info os.FileInfo
-	hash string
+	info  os.FileInfo
+	mtime string
 }
 
 func scanDiskMdFiles(rootDir string) map[string]*diskFileInfo {
@@ -149,8 +113,8 @@ func scanDiskMdFiles(rootDir string) map[string]*diskFileInfo {
 		}
 		relPath, _ := filepath.Rel(rootDir, path)
 		files[relPath] = &diskFileInfo{
-			info: info,
-			hash: computeHash(path),
+			info:  info,
+			mtime: fmt.Sprintf("%d", info.ModTime().UnixNano()),
 		}
 		return nil
 	})
@@ -187,28 +151,12 @@ func cmdInit(args []string) {
 
 	added := 0
 	removed := 0
-	updated := 0
 
-	for rel, df := range diskFiles {
-		if doc, ok := m.Docs[rel]; ok {
-			if doc.Status == "unread" {
-				continue
-			}
-			if df.hash != doc.Hash {
-				doc.Hash = df.hash
-				updated++
-			}
+	for rel := range diskFiles {
+		if _, ok := m.Docs[rel]; ok {
 			continue
 		}
-		doc := &Doc{
-			Title: extractTitle(filepath.Join(rootDir, rel)),
-		}
-		if df.info.Size() >= sizeThreshold {
-			doc.Status = "unread"
-		} else {
-			doc.Hash = df.hash
-		}
-		m.Docs[rel] = doc
+		m.Docs[rel] = &Doc{}
 		added++
 	}
 
@@ -239,7 +187,7 @@ func cmdInit(args []string) {
 
 - **summary**: One-sentence summary (≤80 chars). Answers "what is this document about".
 - **positioning**: One-sentence positioning in the knowledge system. Answers "what role does this document play".
-- **status**: Document lifecycle state. Five statuses are defined by mdMap and must be used consistently:
+- **status**: Document lifecycle state. Four statuses are defined by mdMap and must be used consistently:
 
   **` + "`active`" + `** — the current, authoritative version. This is the document agents should read.
 
@@ -249,12 +197,15 @@ func cmdInit(args []string) {
 
   **` + "`archived`" + `** — historical record, kept for reference only. Not part of the active knowledge graph. Agents should only open it when explicitly asked to review history.
 
-  **` + "`unread`" + `** — mdMap has never read this document's content (file ≥50KB at init time). The document is in the index by title only — no type, summary, triggers, or hash. When you first read this document for any task, update its status to ` + "`active`" + ` (or the correct lifecycle state), fill in ` + "`type`" + ` and ` + "`summary`" + `, and compute its ` + "`hash`" + `. This is progressive indexing — the index improves as agents read documents, not in one expensive pass.
 - **tags**: Free-form tags. Reuse existing tags for consistency.
 - **links**: Navigation hints found in the document body ("See also", "For details see", "Supersedes", etc.). Each link has a target path and a natural-language reason.
 - **triggers**: When should someone read this document? Used for find --trigger queries, which match by substring. Include multiple phrasings covering different ways users might express the same intent. Cover common synonyms and keywords that people who need this document would naturally search for. Example: for a publishing guide, include "publishing a tool", "npm publish", "releasing to GitHub", "shipping a release" — not just one phrasing.
 - **maintains**: When should this document be updated? Same substring-matching principle as triggers. Include diverse keywords. Each maintain is one sentence describing a maintenance trigger.
 - **retires**: When can this document be safely deprecated? Same substring-matching principle. Each retire is one sentence describing a retirement condition.
+
+## Important: init does NOT read .md files
+
+Init only scans the filesystem — it lists directory entries, never opens .md files. All fields (title, type, summary, status, links, triggers, maintains, retires) start empty. You fill them in when you encounter documents during real work. This keeps init instant (no file I/O) and token-free at startup.
 
 ## Project Convention
 
@@ -262,12 +213,6 @@ func cmdInit(args []string) {
 `
 	os.WriteFile(schemaPath, []byte(schema), 0644)
 
-	unreadCount := 0
-	for _, doc := range m.Docs {
-		if doc.Status == "unread" {
-			unreadCount++
-		}
-	}
 	fmt.Printf("mdMap: synced %d documents in %s\n", len(m.Docs), rootDir)
 	parts := []string{}
 	if added > 0 {
@@ -276,14 +221,8 @@ func cmdInit(args []string) {
 	if removed > 0 {
 		parts = append(parts, fmt.Sprintf("-%d", removed))
 	}
-	if updated > 0 {
-		parts = append(parts, fmt.Sprintf("~%d", updated))
-	}
 	if len(parts) > 0 {
 		fmt.Printf("  %s\n", strings.Join(parts, " "))
-	}
-	if unreadCount > 0 {
-		fmt.Printf("  %d unread (≥50KB) — will be indexed when first read\n", unreadCount)
 	}
 	fmt.Printf("  mdMap.json — document index\n")
 	fmt.Printf("  SCHEMA.md  — field reference for LLM maintenance\n")
@@ -485,7 +424,6 @@ func printResult(r resultDoc) {
 
 func cmdValidate(args []string) {
 	flags := flag.NewFlagSet("validate", flag.ExitOnError)
-	fix := flags.Bool("fix", false, "auto-fix detected file moves")
 	strict := flags.Bool("strict", false, "treat warnings as errors")
 	flags.Parse(args)
 
@@ -535,53 +473,6 @@ func cmdValidate(args []string) {
 		}
 	}
 
-	type Move struct {
-		From string
-		To   string
-	}
-
-	var moves []Move
-	var stillMissing []string
-
-	for _, missing := range mapOnly {
-		doc := m.Docs[missing]
-		if doc.Hash == "" {
-			stillMissing = append(stillMissing, missing)
-			continue
-		}
-		matched := false
-		for _, orphan := range diskOnly {
-			diskHash := computeHash(filepath.Join(rootDir, orphan))
-			if diskHash == doc.Hash {
-				moves = append(moves, Move{From: missing, To: orphan})
-				if *fix {
-					m.Docs[orphan] = doc
-					delete(m.Docs, missing)
-				}
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			stillMissing = append(stillMissing, missing)
-		}
-	}
-	mapOnly = stillMissing
-
-	if *fix && len(moves) > 0 {
-		filtered := make([]string, 0, len(diskOnly))
-		movedTo := make(map[string]bool)
-		for _, mv := range moves {
-			movedTo[mv.To] = true
-		}
-		for _, p := range diskOnly {
-			if !movedTo[p] {
-				filtered = append(filtered, p)
-			}
-		}
-		diskOnly = filtered
-	}
-
 	var brokenLinks []string
 	for path, doc := range m.Docs {
 		for _, link := range doc.Links {
@@ -616,12 +507,6 @@ func cmdValidate(args []string) {
 		}
 		hasIssues = true
 	}
-	if len(moves) > 0 {
-		fmt.Printf("moves (%d):\n", len(moves))
-		for _, mv := range moves {
-			fmt.Printf("  %s → %s\n", mv.From, mv.To)
-		}
-	}
 	if len(brokenLinks) > 0 {
 		fmt.Printf("broken links (%d):\n", len(brokenLinks))
 		for _, l := range brokenLinks {
@@ -642,14 +527,6 @@ func cmdValidate(args []string) {
 			fmt.Printf("  %s\n", l)
 		}
 		hasWarnings = true
-	}
-
-	if *fix && len(moves) > 0 {
-		if err := saveMap(m, rootDir); err != nil {
-			fmt.Fprintf(os.Stderr, "mdMap: %v\n", err)
-			os.Exit(1)
-		}
-		fmt.Println("mdMap.json updated")
 	}
 
 	if hasIssues {
@@ -731,43 +608,15 @@ func cmdChanged(args []string) {
 
 	diskFiles := scanDiskMdFiles(rootDir)
 
-	var newFiles []string
 	for path := range diskFiles {
 		if _, exists := m.Docs[path]; !exists {
-			newFiles = append(newFiles, path)
+			fmt.Printf("new: %s\n", path)
 		}
 	}
 
-	var printedMoves = make(map[string]bool)
-	var modified []string
-
-	for path, doc := range m.Docs {
-		df, exists := diskFiles[path]
-		if !exists {
-			matched := false
-			for _, nf := range newFiles {
-				if diskFiles[nf].hash == doc.Hash {
-					fmt.Printf("moved: %s → %s\n", path, nf)
-					printedMoves[nf] = true
-					matched = true
-					break
-				}
-			}
-			if !matched {
-				fmt.Printf("deleted: %s\n", path)
-			}
-		} else if df.hash != doc.Hash {
-			modified = append(modified, path)
+	for path := range m.Docs {
+		if _, exists := diskFiles[path]; !exists {
+			fmt.Printf("deleted: %s\n", path)
 		}
-	}
-
-	for _, p := range newFiles {
-		if !printedMoves[p] {
-			fmt.Printf("new: %s\n", p)
-		}
-	}
-
-	for _, p := range modified {
-		fmt.Printf("modified: %s\n", p)
 	}
 }
