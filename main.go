@@ -87,16 +87,11 @@ func saveMap(m *MapFile, rootDir string) error {
 	return os.WriteFile(filepath.Join(rootDir, "mdMap.json"), data, 0644)
 }
 
-type diskFileInfo struct {
-	info  os.FileInfo
-	mtime string
-}
-
-func scanDiskMdFiles(rootDir string) map[string]*diskFileInfo {
+func scanDiskMdFiles(rootDir string) map[string]struct{} {
 	absRoot, _ := filepath.Abs(rootDir)
 	schemaPath := filepath.Join(absRoot, "SCHEMA.md")
 
-	files := make(map[string]*diskFileInfo)
+	files := make(map[string]struct{})
 	filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {
 			if info != nil && info.IsDir() && info.Name() == ".git" {
@@ -112,10 +107,7 @@ func scanDiskMdFiles(rootDir string) map[string]*diskFileInfo {
 			return nil
 		}
 		relPath, _ := filepath.Rel(rootDir, path)
-		files[relPath] = &diskFileInfo{
-			info:  info,
-			mtime: fmt.Sprintf("%d", info.ModTime().UnixNano()),
-		}
+		files[relPath] = struct{}{}
 		return nil
 	})
 	return files
@@ -441,35 +433,19 @@ func cmdValidate(args []string) {
 	hasIssues := false
 	hasWarnings := false
 
-	var diskOnly []string
 	var mapOnly []string
 
-	filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return nil
-		}
-		if info.IsDir() && info.Name() == ".git" {
-			return filepath.SkipDir
-		}
-		if !strings.HasSuffix(info.Name(), ".md") {
-			return nil
-		}
-		absPath, _ := filepath.Abs(path)
-		absRoot, _ := filepath.Abs(rootDir)
-		schemaPath := filepath.Join(absRoot, "SCHEMA.md")
-		if absPath == schemaPath {
-			return nil
-		}
-		relPath, _ := filepath.Rel(rootDir, path)
-		if _, exists := m.Docs[relPath]; !exists {
-			diskOnly = append(diskOnly, relPath)
-		}
-		return nil
-	})
-
+	diskFiles := scanDiskMdFiles(rootDir)
 	for path := range m.Docs {
-		if _, err := os.Stat(filepath.Join(rootDir, path)); os.IsNotExist(err) {
+		if _, exists := diskFiles[path]; !exists {
 			mapOnly = append(mapOnly, path)
+		}
+	}
+
+	var diskOnly []string
+	for path := range diskFiles {
+		if _, exists := m.Docs[path]; !exists {
+			diskOnly = append(diskOnly, path)
 		}
 	}
 

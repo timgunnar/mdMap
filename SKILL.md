@@ -17,14 +17,9 @@ The documents themselves contain the answer. They say things like "if you're pub
 
 mdMap solves this by building a structured JSON index. Agents enrich it when they naturally encounter documents. From that point on, you query the index instead of scanning directories. You spend zero tokens on navigation.
 
-## The rule you must follow
+## The rule
 
-**Before opening any markdown document in this project, check mdMap first.**
-
-If you know the exact document path: `mdmap find <path>`
-If you have a task description: `mdmap find --trigger "<what you are doing>"`
-
-Only open the documents mdMap returns. Everything else is irrelevant to your current task.
+**When you don't know which document to open: try mdMap first.** If it returns results, open the top match. If it returns nothing (the index is blank — common after a fresh `init`), scan the directory and pick the most likely file by filename.
 
 ## How the project got here
 
@@ -104,22 +99,62 @@ mdmap find --search "auth migration"
 # [guide]      [draft]  auth_migration_v4.md  — New auth migration guide (drafting)
 ```
 
-## When to use mdMap vs direct file access
+## Two-track architecture
 
-mdMap is a navigation layer, not a replacement for file I/O. **You always open and read files the normal way.** mdMap just tells you which one to open.
+Think of yourself as a person working in a large city. mdMap is your map.
+
+**Track 1: the map (Go code)** — `init`, `changed`, `validate`, `find`. Determines what streets exist, whether they appeared or disappeared, whether the road network has dead ends or loops. No LLM involved. This is structural: what files are on disk, what links point where.
+
+**Track 2: the person (Agent)** — you. You walk the streets, look at buildings, learn what's inside. When you discover something the map doesn't know — a new restaurant, a closed shop, a street that changed direction — you update the map.
+
+### The cold start
+
+After `mdmap init`, the map is blank. Every street is on it, but none of them have labels:
+
+```
+mdmap find --search "publishing"
+# (nothing — all fields are empty)
+```
+
+**This is normal.** A new map always starts blank. Your job is to walk the first few streets and label them:
+
+```
+# Step 1: find returns nothing → scan the directory yourself
+ls docs/
+# architecture.md  auth.md  publish_checklist.md  security.md ...
+
+# Step 2: pick the most likely file, open it directly
+read docs/publish_checklist.md
+
+# Step 3: after reading, update the map
+#   title → "Publishing Checklist"
+#   type → "checklist"
+#   summary → "Step-by-step guide for releasing tools to GitHub"
+#   triggers → ["publishing a tool", "releasing", "shipping"]
+```
+
+**Step 4: next time you search → it works:**
+
+```
+mdmap find --search "publishing"
+# [checklist]  publish_checklist.md  — Step-by-step guide for releasing tools to GitHub
+```
+
+Over time, as you (and other agents) encounter documents and update the map, `find` becomes more and more useful. The index grows organically — not in one expensive pass, but street by street as people actually walk them.
+
+### When to use the map, when to use your eyes
 
 | scenario | use | why |
 |----------|-----|-----|
-| Don't know which document to read | **mdMap** `find --search --type` | Locate first, then open |
-| Already know the file path | **Open file directly** | mdMap is middleware; skip if you know the target |
-| Need to find all applicable rules | **mdMap** `find --type rule` | Exact type filter → 2-5 results |
-| File doesn't exist yet, creating new | **Create directly** | `init` will pick it up next run |
-| Verify document graph integrity | **mdMap** `validate` | Four deterministic checks, zero LLM |
-| See what changed on disk | **mdMap** `changed` | new: + deleted: — instant diff |
-
-**Core design**: `mdmap init` does NOT open .md files. It only lists directory entries. All fields start empty. You fill them in when you encounter documents during real work. This is the two-track approach: mdMap is a map (you can use it), not a substitute for reading files directly (you always can).
-
-**Your job**: when you read an `init`-stub document (for any task, via any method), update its entry in mdMap.json afterward — fill in type, summary, triggers, links, etc. The index grows organically as agents do real work.
+| Starting fresh — map is blank | **Look around. Read files directly.** | A blank map doesn't help. Label the first few streets yourself |
+| Don't know which file to open | **mdMap** `find --search --type` | Check the map first, then walk |
+| Already know the file path | **Open it directly** | You don't need a map to go to a place you already know |
+| `find` returns empty | **Scan the directory. Pick by filename.** | The map doesn't have labels for this area yet. Walk there and label it |
+| You read a document (for any task) | **Update the map afterward** | If the map is missing info you now know — type, summary, triggers — write it in |
+| Creating a new document | **Create the file, then update the map** | Add its entry to mdMap.json with semantic fields filled in |
+| Check if the map is consistent | **mdMap** `validate` | Are there streets on the map that don't exist? Links pointing nowhere? |
+| See what changed | **mdMap** `changed` | New streets appeared? Old ones demolished? |
+| `find` works and returns results | **Trust it. Open the document it suggests.** | The map is populated. Use it |
 
 ## Commands you will use
 
@@ -160,22 +195,3 @@ mdmap validate --strict # CI gate
 ```bash
 mdmap changed           # what changed since the last index
 ```
-
-## When you should help maintain the index
-
-You are not just a consumer of the index — you are also its maintainer. Help keep it current:
-
-**After `mdmap validate` reports orphans:** new documents exist on disk but are not in the index. Read SCHEMA.md, then read each orphan document, extract its semantic fields, and write them into mdMap.json. Update SCHEMA.md's Project Convention section if you introduce new type/status/tag values.
-
-**After `mdmap changed` reports changes:** documents were added to or deleted from disk. If new docs appeared, read SCHEMA.md, then read each new document, evaluate its semantic fields, and write them into mdMap.json.
-
-**When you create a new document:** don't just write the file. Also add its entry to mdMap.json with the semantic fields filled in, and run `mdmap validate` to confirm nothing is broken.
-
-## Architecture you should understand
-
-The project maintains a strict separation:
-
-- **Agents read documents, maintain the index.** Evaluate and update metadata when you naturally encounter documents during work.
-- **Go code manages structure.** Which files exist, whether they're on disk — that's `init`/`changed`/`validate`'s job. Deterministic checks, zero LLM.
-
-You are in the Agent role. You evaluate and fill the metadata. The CLI does the structural verification. Trust `validate` — it catches mistakes you might make (broken links, stale references). Run it after every update.
