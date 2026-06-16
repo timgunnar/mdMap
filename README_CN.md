@@ -62,7 +62,7 @@ mdmap find --type checklist --tag "发布"          # 过滤搜索
 
 **你的术语，不是我们的。** 不写死文档类型。不限制状态值。软件项目可以标 `checklist`、`architecture`、`api_spec`。写小说的用 `character_profile`、`chapter_outline`、`world_setting`。mdMap 从 SCHEMA.md 学会你的词汇，然后保持一致。
 
-**双轨制。** mdMap 是地图，不是文件阅读的替代品。Agent 始终直接读文件。mdMap 只告诉你该读哪一个。文件移动、重命名？重跑 `mdmap init` 一键同步。
+**双轨制。** mdMap 是地图，不是文件阅读的替代品。Agent 始终直接读文件。mdMap 只告诉你该读哪一个。文件重命名？重跑 `mdmap init` 一键同步。
 
 ## 你看不到的索引
 

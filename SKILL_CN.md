@@ -112,7 +112,7 @@ mdmap find --type rule --search "project a"
 
 search 查的是建筑本身是什么。trigger/maintains/retires 查的是门口牌子写了什么。不同维度，同一张地图。
 
-## 建筑分类（类型系统）
+## 建筑分类
 
 每栋建筑在地图上挂着一面彩色旗子。两种旗色是必须的：
 
@@ -134,7 +134,7 @@ mdmap find --search "auth"
 
 **红旗（`rule`）= 先打开。蓝旗（`resource`）= 需要参考才打开。**
 
-## 建筑状态（状态系统）
+## 建筑状态
 
 每栋建筑贴着一块状态牌。四种状态牌是必须的：
 

@@ -113,7 +113,7 @@ mdmap find --type rule --search "project a"
 
 Search scans what the building IS. Trigger/Maintains/Retires scan what the signs SAY. Different dimensions, same map.
 
-## Building categories (type system)
+## Building categories
 
 Every building on the map has a colored flag. Two flag colors are mandatory:
 
@@ -135,7 +135,7 @@ mdmap find --search "auth"
 
 **Red flag (`rule`) = open first. Blue flag (`resource`) = open only if you need reference.**
 
-## Building condition (status system)
+## Building condition
 
 Every building has a condition plaque. Four plaques are mandatory:
 
