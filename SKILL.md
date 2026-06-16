@@ -101,60 +101,181 @@ mdmap find --search "auth migration"
 
 ## Two-track architecture
 
-Think of yourself as a person working in a large city. mdMap is your map.
+You are a person with a map, walking real terrain.
 
-**Track 1: the map (Go code)** — `init`, `changed`, `validate`, `find`. Determines what streets exist, whether they appeared or disappeared, whether the road network has dead ends or loops. No LLM involved. This is structural: what files are on disk, what links point where.
+| element | what it is | in mdMap |
+|---------|-----------|---------|
+| the terrain | real geography — what you walk through | `.md` files on disk |
+| the map | a flat representation of the terrain — streets, labels, notes | `mdMap.json` |
+| the cartography tools | instruments that create, compare, and check maps | `mdmap init / changed / validate / find` |
+| you | the person who walks, reads, judges, annotates | the Agent |
 
-**Track 2: the person (Agent)** — you. You walk the streets, look at buildings, learn what's inside. When you discover something the map doesn't know — a new restaurant, a closed shop, a street that changed direction — you update the map.
+**The tools don't walk the terrain.** They produce maps from directory scans, compare map versions against disk, check the map's internal consistency, look things up. Zero LLM. Structural only.
 
-### The cold start
+**The map doesn't walk the terrain either.** It's a flat artifact — what you annotated last time you were here. It might be accurate, outdated, blank, or wrong.
 
-After `mdmap init`, the map is blank. Every street is on it, but none of them have labels:
+**You walk the terrain.** You read actual .md files. You compare what you see against what the map says. You decide whether the map needs updating.
 
-```
-mdmap find --search "publishing"
-# (nothing — all fields are empty)
-```
+---
 
-**This is normal.** A new map always starts blank. Your job is to walk the first few streets and label them:
-
-```
-# Step 1: find returns nothing → scan the directory yourself
-ls docs/
-# architecture.md  auth.md  publish_checklist.md  security.md ...
-
-# Step 2: pick the most likely file, open it directly
-read docs/publish_checklist.md
-
-# Step 3: after reading, update the map
-#   title → "Publishing Checklist"
-#   type → "checklist"
-#   summary → "Step-by-step guide for releasing tools to GitHub"
-#   triggers → ["publishing a tool", "releasing", "shipping"]
-```
-
-**Step 4: next time you search → it works:**
+### Decision 1: should I consult the map?
 
 ```
-mdmap find --search "publishing"
-# [checklist]  publish_checklist.md  — Step-by-step guide for releasing tools to GitHub
+┌─────────────────────────────────┐
+│ Do you already know which file  │
+│ to open?                        │
+└────────────┬────────────────────┘
+             │
+     ┌───────┴───────┐
+     │ yes           │ no
+     ▼               ▼
+  Open it        ┌─────────────────────────┐
+  directly.      │ Is the map likely to    │
+                 │ have labels here?        │
+                 │ (have you/others walked  │
+                 │  these streets before?)  │
+                 └──────────┬──────────────┘
+                            │
+                    ┌───────┴───────┐
+                    │ probably      │ probably
+                    │ populated     │ blank
+                    ▼               ▼
+              query the map:   walk freely:
+              mdmap find       scan dir,
+              --search         pick by
+                               filename
 ```
 
-Over time, as you (and other agents) encounter documents and update the map, `find` becomes more and more useful. The index grows organically — not in one expensive pass, but street by street as people actually walk them.
+**When to skip the map entirely:**
+- You know the exact path. You've been there before.
+- The project just finished `mdmap init` — everything is blank.
+- You tried `find` and got nothing — the map doesn't cover this area.
 
-### When to use the map, when to use your eyes
+**When to consult the map:**
+- You don't know which file to open for a task.
+- You need to find all documents that constrain a particular activity (`--type rule`).
+- You want to know if a document has been deprecated or is still active.
+- Multiple agents have been working here — others may have labeled streets you haven't walked.
 
-| scenario | use | why |
-|----------|-----|-----|
-| Starting fresh — map is blank | **Look around. Read files directly.** | A blank map doesn't help. Label the first few streets yourself |
-| Don't know which file to open | **mdMap** `find --search --type` | Check the map first, then walk |
-| Already know the file path | **Open it directly** | You don't need a map to go to a place you already know |
-| `find` returns empty | **Scan the directory. Pick by filename.** | The map doesn't have labels for this area yet. Walk there and label it |
-| You read a document (for any task) | **Update the map afterward** | If the map is missing info you now know — type, summary, triggers — write it in |
-| Creating a new document | **Create the file, then update the map** | Add its entry to mdMap.json with semantic fields filled in |
-| Check if the map is consistent | **mdMap** `validate` | Are there streets on the map that don't exist? Links pointing nowhere? |
-| See what changed | **mdMap** `changed` | New streets appeared? Old ones demolished? |
-| `find` works and returns results | **Trust it. Open the document it suggests.** | The map is populated. Use it |
+---
+
+### Decision 2: after reading a document, should I update the map?
+
+You read a document for any reason — a task, curiosity, a `find` result. After reading, ask:
+
+```
+┌─────────────────────────────────────┐
+│ Is the document already in          │
+│ mdMap.json?                         │
+└────────────┬────────────────────────┘
+             │
+     ┌───────┴───────┐
+     │ no            │ yes
+     ▼               ▼
+  Update the     ┌─────────────────────────────────────┐
+  map. It's      │ Does what you just read MATCH        │
+  a new place.   │ what the map says about it?          │
+                 │                                      │
+                 │ Check: title, type, summary,          │
+                 │ status, triggers, maintains,          │
+                 │ retires, links                        │
+                 └──────────────┬──────────────────────┘
+                                │
+                        ┌───────┴───────┐
+                        │ matches       │ doesn't match
+                        ▼               ▼
+                   Do nothing.      Update the map.
+                   The map is       Fix what's wrong.
+                   already          The terrain has
+                   accurate.        changed since the
+                                    last annotation.
+
+                   Exception:       Exception:
+                   if the document   if the document
+                   was blank in      was marked
+                   the map (fresh    [active] but
+                   after init),      you found a note
+                   fill it in        saying it was
+                   even if you       superseded → set
+                   think the         it to [deprecated].
+                   content is
+                   obvious.
+```
+
+**When to update:** the map is missing the document entirely, the map has empty fields (fresh after init), the map's type/summary/status/triggers don't match what you just read, the document references other documents the map doesn't link to, the document says it was superseded but the map says active.
+
+**When NOT to update:** the map already accurately describes the document. You read it, confirmed everything the map says, learned nothing that contradicts the map. Not every visit requires a map annotation — only when you discover a discrepancy or complete a blank entry.
+
+---
+
+### Decision 3: what if the map and terrain disagree?
+
+Sometimes the map is outright wrong — not just incomplete.
+
+| the map says | but the terrain shows | what happened | what to do |
+|-------------|----------------------|---------------|-----------|
+| "auth_v3.md" (status: active) | doc body says "Superseded by auth_v4.md" | someone updated the doc but not the map | set auth_v3 → deprecated, add retires reason |
+| "rules.md" (type: checklist) | doc body is all constraints and policies | wrong type classification | change type → rule |
+| trigger: "publishing" | doc is actually about deployment, not publishing | trigger is misleading | replace trigger with accurate keywords |
+| links → "old_design.md" | old_design.md doesn't exist on disk | link target was deleted | remove or update the link |
+| doc is in map but file doesn't exist on disk | — | file was deleted/moved without updating map | run `mdmap init` to re-sync, or `mdmap validate` to detect |
+
+**You catch these discrepancies by walking.** The map can't tell you it's wrong — only the terrain can. Every time you open a document, you're validating the map against reality.
+
+**The tools catch some of them too:**
+- `mdmap validate` finds: files on disk not in map (orphans), map entries pointing to missing files, links to deprecated docs, link cycles.
+- `mdmap changed` finds: files added to or removed from disk since last `init`.
+
+---
+
+### Decision 4: how does the map improve over time?
+
+The map gets better every time someone walks a street they haven't walked before.
+
+```
+Day 1: mdmap init → 200 blank entries
+       Agent A walks 5 streets, labels them
+       Map: 5 labeled, 195 blank
+
+Day 2: Agent B walks 3 of the same streets → confirms labels are still accurate
+       Agent B walks 7 new streets → labels them
+       Map: 12 labeled, 188 blank
+
+Day 3: Agent A walks a street it labeled on Day 1
+       → doc was updated since Day 1 → summary no longer matches
+       → Agent A updates the map
+       Map: 12 labeled (1 updated), 188 blank
+
+Day N: 80 streets labeled. find --search is genuinely useful.
+       120 still blank — but they're blank because nobody needed them yet.
+```
+
+**Don't batch-label the entire map.** Only label streets you actually walk. A street nobody needs is fine being blank. When someone finally needs it, they'll walk it and label it then.
+
+**Multiple agents share the map.** What Agent A labeled yesterday, Agent B benefits from today. What Agent B discovers is wrong, Agent A won't trip over tomorrow.
+
+---
+
+### Summary: every scenario
+
+| scenario | what you do |
+|----------|------------|
+| Map is blank, you need to find a doc | Scan the directory yourself. Pick by filename. Read the best candidate. Label it on the map. |
+| Map has labels, you need to find a doc | `mdmap find --search "..." --type rule`. Read the top result. |
+| find returns empty (map doesn't cover this area) | Scan the directory yourself. Pick by filename. After reading, label the map. |
+| find returns a result, you read the doc | Compare doc content against map metadata. If they match → done. If they don't → update the map. |
+| You already know the file path | Open it directly. No need to consult the map. After reading, still check: does the map accurately describe this place? |
+| You read a doc and it references other docs | Update the map's `links` field. Future agents searching for this doc will discover those connections without opening it. |
+| You create a new .md file | Add its entry to mdMap.json with full semantic fields. Don't wait for `init` to pick it up as a blank entry. |
+| `mdmap validate` reports orphans | New files exist on disk but aren't in the map. Read them, add entries to mdMap.json. |
+| `mdmap validate` reports broken links | A document links to something that doesn't exist. Check the terrain — was the target deleted? Moved? Fix or remove the link. |
+| `mdmap validate` reports stale links | A document links to a deprecated/archived doc. Should the link be updated to the replacement? |
+| `mdmap validate` reports cycles | Documents link to each other in a loop. Usually a mistake — fix the link structure. |
+| `mdmap changed` reports new files | Someone added .md files to disk. Read them, add entries to mdMap.json. |
+| `mdmap changed` reports deleted files | Files removed from disk. Run `mdmap init` to clean up the map, or manually remove the entries. |
+| You suspect the map is out of sync | Run `mdmap changed`. It tells you exactly what differs between disk and the last `init`. |
+| The map says [deprecated], you need the current version | Read the deprecated doc to find what superseded it. Then follow that link. Update the map if the link is missing. |
+| The map has incomplete info for a doc you're reading | Fill in the missing fields. Even partial updates help: just adding a summary is better than blank. |
 
 ## Commands you will use
 
