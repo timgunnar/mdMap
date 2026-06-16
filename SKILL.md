@@ -13,74 +13,118 @@ mdMap is a zero-dependency CLI that builds a structured JSON index of your markd
 
 ### Without a map
 
-A person walks into a city with no map. They need to find a publishing guide. They don't know which building it's in.
+A person walks into a city with no map. They need to find the publishing guide.
 
-They walk into the first building that looks right. Open the door. Look around. Nope — this is the architecture document. Close the door. Walk into another. Open. Skim. Nope — auth documentation. Close. Three, four, five buildings. Every open-close costs energy. By the time they find the right building, they've already spent half their stamina just walking in and out of wrong places.
+They enter the first building. Read the signs on the wall: *"If you're deploying, see the CI/CD guide in Building D."* That's not what they need — but they had to enter the building to read the sign. Close the door. Walk to another. Enter. Read: *"Before publishing, check the security policy in Building F."* Not the publishing guide itself, but a sign pointing somewhere else. Close. Walk. Enter. Read signs. Close. Walk. Enter. Read signs. Close.
 
-This is the traditional `.md` ocean. Open file. Read. Close. Open another. Read. Close. Most of what you read is navigation noise — not the document you need, just documents you had to enter to discover they weren't the right one.
+Every building they enter is a wayfinding station. The terrain itself contains directions — *"if X, see Y.md"*, *"before Z, read W.md"* — scattered across dozens of documents. But you can only read those directions by entering each building. One wrong building leads to a sign pointing to another wrong building. It's not just that you open wrong files — it's that each wrong file tells you to open another one.
+
+This is the traditional `.md` ocean. Open. Read (mostly navigation instructions to other files). Close. Walk to the next one. Open. Read (more directions). Close. By the time you find the actual content you need, you've entered and exited ten buildings just following signs on the walls.
 
 ### With a map
 
-Someone gives them mdMap. It's a hand-drawn index card that says:
+Someone hands them mdMap. It's an index card. On it, someone who walked this neighborhood before wrote:
 
-> "publishing a tool" → `docs/tools/publish_checklist.md`
+> `publish_checklist.md` — Step-by-step guide for releasing tools to GitHub
+> Signs on the door: "publishing a tool", "releasing", "shipping"
+> Connections: links to security_policy.md (must check before publishing)
 
-They walk directly there. One door. Open. Read. Done.
+They walk directly to that building. One door. Read. Done.
 
-That index card gets better every time someone walks a street and updates it. After enough people have walked around, the map can answer not just "where is the publishing guide" but "show me everything labeled `rule` related to auth" or "which documents link to the security policy."
+But the card doesn't stop at one entry. Someone else walked past other buildings and added more. Now the card can answer:
 
-mdMap is that index card. The Go CLI makes it, checks it, queries it. Agents annotate it. The terrain — your .md files — stays exactly as it was. Nothing is replaced. The map is just a new way to navigate the terrain you already have.
+> "Show me every building with a red flag (rule) near 'auth'."
+> "Which buildings point to the security policy?"
+> "Are there any signs pointing to demolished buildings?"
+
+The map copies the signs off every door and the connection notes off every wall into a flat, searchable surface. You no longer need to enter a building to know what's inside or where it points. The terrain — your `.md` files — is untouched. The map is a new layer on top.
+
+**mdMap is that index card.** The Go CLI (`init`, `find`, `validate`, `changed`) makes it, queries it, checks it. Agents (you) annotate it. Nothing is replaced. The `.md` ocean is still there — you can swim in it whenever you want. The map just gives you a new option: look up where you're going before you walk.
 
 ## The rule
 
 **When you don't know which document to open: try mdMap first.** If it returns results, open the top match. If it returns nothing (the index is blank — common after a fresh `init`), scan the directory and pick the most likely file by filename.
 
-## How the project got here
+## How the map was made
 
-Someone ran `mdmap init` to create the initial index. Then an LLM (possibly a previous instance of you) read SCHEMA.md, processed each document, and filled in the semantic fields: type, summary, positioning, links, triggers, maintains, retires.
+Someone ran `mdmap init` — the cartography tool that scans every street and draws a blank map. Every building appears as an empty entry: it exists on the terrain, but the map says nothing about it.
 
-The index lives in `mdMap.json`. Maintenance instructions live in `SCHEMA.md`. You should never read the full `mdMap.json` into context — always query it through the CLI.
+Then agents walked the streets. Each time someone entered a building, they annotated the map: what flag color it should have, what condition plaque, what signs are on the door, what other buildings it points to. The map filled in street by street.
 
-## How to find the right document
+The map lives in `mdMap.json`. The legend (what each field means, which flag colors and plaques are valid) lives in `SCHEMA.md`. Never read the full `mdMap.json` — always query it through the CLI.
 
-mdMap models search as **SQL conditional queries** — exact fields use `=` filtering, semantic fields use `LIKE` substring matching, and your semantic understanding makes the final call.
+## The map's hidden power: signs and connections
 
-```
---type rule --status active --search "project a"
-   type=rule      status=active      title/summary/positioning contains "project a"
-```
+Two features make the map more useful than the terrain alone:
 
-**Two-layer filtering**:
+**Signs (triggers, maintains, retires).** When someone walks into a building, they read the signs on the wall — *"come here if you're publishing"*, *"review this if auth changed"*. They copy those signs onto the map. Now you can search for "publishing" and find the building without ever entering it or any of its neighbors. Every sign that was once trapped inside a document is now indexed on the surface.
 
-| field type | matching | example |
-|-----------|----------|---------|
-| exact fields | type, status, tag exact match | `--type rule`, `--status active`, `--tag publish` |
-| semantic fields | title, summary, positioning substring | `--search "project a publish"` |
-
-**Core strategy: narrow with type, then read summaries.**
+**Connections (links).** Buildings contain directions to other buildings — *"before publishing, see security_policy.md"*, *"superseded by auth_v4.md"*. Someone who entered the building recorded those connections on the map. Now you can trace the entire road network without walking it — see which buildings point where, spot dead-end links, detect circular references.
 
 ```bash
-# User says: "I need to publish project-a"
-# You reason: they need publishing rules → --type rule
-mdmap find --type rule --search "project a"
-# [rule]  project_a_publish.md  — Publishing rules for project-a: GitHub releases, vX.Y.Z tags
-# [rule]  project_b_publish.md  — Publishing rules for project-b: npm publish
+# Signs on doors — searchable without entering
+mdmap find --trigger "publishing"     # "which buildings say 'come here if you're publishing'?"
+mdmap find --maintains "auth changed" # "which buildings should be reviewed after auth changes?"
+mdmap find --retires "CLI deprecated" # "which buildings are obsolete now?"
 
-# Two results. First summary matches → open project_a_publish.md. Done.
+# The map itself tracks connections
+mdmap validate  # checks: Are there signs pointing to demolished buildings?
+                #         Are buildings linked in circles?
+                #         Are buildings missing from the map entirely?
 ```
 
-**No ranking, no scoring needed.** After conditional filtering, you get 2-5 results. Your own semantic understanding on 2-5 summary lines beats any algorithm. If the first summary doesn't match, check the second — you'll find the right one within 5 lines at most. Same as SQL: WHERE narrows the result set, your brain does the final filter.
+## How to query the map
 
-## Document type system
+`mdmap find` is a map lookup. Each flag is a dimension you filter by.
 
-mdMap predefines two core types that you must use consistently:
+```
+Find every building with flag=rule, status=active, and "publishing"
+mentioned in its name or description.
 
-| type | meaning | when executing a task |
-|------|---------|----------------------|
-| **`rule`** | constraint document — governs HOW a task should be executed | **Must follow.** Ignoring it means you are not complying with project standards/security/architecture. Examples: coding standards, architectural principles, security policies |
-| **`resource`** | standalone reference — long-form content with no indexing relationships | **Consult as needed.** It does not constrain your behavior; it provides information. Examples: long-form fiction, world-building docs, historical reference notes |
+  --type rule     building category (rule = red flag, checklist, guide…)
+  --status active  building condition (active, deprecated, draft, archived)
+  --search "pub"   text on the building's label or description
+```
 
-Search output shows the type tag inline — you know a document's role at a glance:
+The underlying engine is equivalent to SQL: exact fields use `=` filtering, semantic fields use `LIKE` substring matching.
+
+**The map returns at most 2-5 buildings.** Your semantic judgment on 2-5 one-line summaries beats any ranking algorithm. If the first doesn't match, check the second.
+
+```bash
+# You need to publish project-a → probably need rules about publishing
+mdmap find --type rule --search "project a"
+# [rule]  project_a_publish.md  — Publishing rules for project-a: GitHub releases
+# [rule]  project_b_publish.md  — Publishing rules for project-b: npm publish
+
+# First summary matches → open it. Done.
+```
+
+**Why triggers are separate from search:**
+
+| flag | what it queries | metaphor |
+|------|----------------|----------|
+| `--search` | title, summary, positioning | the label on the building and its one-line description |
+| `--trigger` | the `triggers` list | the signs copied from the door ("come here if you're publishing") |
+| `--maintains` | the `maintains` list | the signs about maintenance ("come here if auth changed") |
+| `--retires` | the `retires` list | the signs about retirement ("come here if CLI development stopped") |
+| `--type` | document type | building category flag color |
+| `--status` | document status | building condition plaque |
+| `--tag` | tags | freeform markers on the building |
+
+Search scans what the building IS. Trigger/Maintains/Retires scan what the signs SAY. Different dimensions, same map.
+
+## Building categories (type system)
+
+Every building on the map has a colored flag. Two flag colors are mandatory:
+
+| flag | meaning | rule |
+|------|---------|------|
+| **`rule`** (red flag) | this building constrains HOW work must be done | **Must enter.** Skipping it means you're not complying with project standards. Examples: coding standards, security policies, architectural principles |
+| **`resource`** (blue flag) | standalone long-form content, no connections to other buildings | **Enter if curious.** It doesn't constrain your behavior. Examples: novel chapters, world-building docs, historical reference notes |
+
+Other flag colors emerge from the project: `checklist`, `architecture`, `guide`, `api_spec`, `meeting_notes`, etc. When you label a building, reuse existing flag colors for consistency.
+
+The map shows the flag inline:
 
 ```bash
 mdmap find --search "auth"
@@ -89,28 +133,26 @@ mdmap find --search "auth"
 # [resource]    auth_history.md       — History of OAuth protocol evolution
 ```
 
-When you see `[rule]` → open it first. You must follow its constraints. When you see `[resource]` → open it only if you need reference information.
+**Red flag (`rule`) = open first. Blue flag (`resource`) = open only if you need reference.**
 
-**When indexing:** if a document constrains agent behavior → tag it `rule`. If it is a standalone long-form document with no index relationships to other docs → tag it `resource`. For all other documents, use project-specific types.
+## Building condition (status system)
 
-## Document status system
+Every building has a condition plaque. Four plaques are mandatory:
 
-mdMap predefines four core statuses that you must use consistently:
+| plaque | meaning | what to do |
+|--------|---------|-----------|
+| **`active`** | operational, current, authoritative | **Enter. This is the one to read.** |
+| **`deprecated`** | condemned — replaced or no longer applicable | **Do not enter as primary reference.** The map shows `[deprecated]` warning. Enter only to find what replaced it. |
+| **`draft`** | under construction — content may change | **Enter for direction only.** Not final authority. |
+| **`archived`** | historical landmark — kept for record | **Do not enter unless explicitly asked.** Not part of the active knowledge graph. |
 
-| status | meaning | agent behavior |
-|--------|---------|---------------|
-| **`active`** | current authoritative version | **Use directly.** This is the version you should read and follow |
-| **`deprecated`** | replaced or no longer applicable | **Do not use as primary reference.** Search output shows `[deprecated]` warning |
-| **`draft`** | work in progress, content may change | **Consult for direction only.** Not final authority |
-| **`archived`** | historical record, kept for reference | **Do not open proactively.** Only when the user explicitly asks |
-
-`active` is not shown in search output (it's the default — no noise). Non-active statuses are labeled:
+`active` is not printed (it's the default — no noise). Non-active plaques are shown:
 
 ```bash
 mdmap find --search "auth migration"
 # [checklist]   auth_migration_v3.md   — Current auth migration checklist (v3)
-# [checklist]  [deprecated]  auth_migration_v2.md  — Old auth migration checklist (v2)
-# [guide]      [draft]  auth_migration_v4.md  — New auth migration guide (drafting)
+# [checklist]  [deprecated]  auth_migration_v2.md  — Old checklist (v2)
+# [guide]      [draft]  auth_migration_v4.md  — New guide (drafting)
 ```
 
 ## Two-track architecture
@@ -291,42 +333,23 @@ Day N: 80 streets labeled. find --search is genuinely useful.
 | The map says [deprecated], you need the current version | Read the deprecated doc to find what superseded it. Then follow that link. Update the map if the link is missing. |
 | The map has incomplete info for a doc you're reading | Fill in the missing fields. Even partial updates help: just adding a summary is better than blank. |
 
-## Commands you will use
-
-### Finding documents
+## The cartography toolkit
 
 ```bash
-# Primary — SQL-style conditional query (exact type + semantic search)
+# Create the map — scan every street, draw blank entries
+mdmap init ./docs
+
+# Query the map — find buildings by flag, plaque, signs, labels
 mdmap find --type rule --search "publishing"
-
-# Exact lookup (O(1)) — you know the path
-mdmap find docs/architecture/auth_v3.md
-
-# Narrower — only read-trigger, update-trigger, or retire-trigger fields
 mdmap find --trigger "publishing a CLI tool"
-
-# Update trigger — "what documents should be reviewed after this change?"
-mdmap find --maintains "github changed authentication"
-
-# Retire trigger — "what documents are obsolete now?"
-mdmap find --retires "stopped building CLI tools"
-
-# Filter by type or tag
 mdmap find --type checklist --tag "publish"
+mdmap find docs/architecture/auth_v3.md      # look up by address
+mdmap find --trigger "auth" --json           # machine-readable output
 
-# JSON output for programmatic consumption
-mdmap find --trigger "auth" --json
-```
-
-### Checking index health
-
-```bash
+# Health check — is the map consistent with the terrain?
 mdmap validate          # orphans, broken links, cycles, stale refs
-mdmap validate --strict # CI gate
-```
+mdmap validate --strict # CI gate (warnings become errors)
 
-### Tracking changes
-
-```bash
-mdmap changed           # what changed since the last index
+# Terrain diff — what changed since the last map was drawn?
+mdmap changed           # new buildings, demolished buildings
 ```
