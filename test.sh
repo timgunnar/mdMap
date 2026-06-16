@@ -443,33 +443,25 @@ if [ "$meta" = "rule|Rule A|active" ]; then pass "re-init: metadata preserved"; 
 rm -rf "$SYNC_DIR"
 
 # ============================================================
-# Test: init — git-aware mode (runs inside mdMap repo)
+# Test: init — git-ignored files ARE indexed (mdMap owns all md)
 # ============================================================
-echo -e "\n${CYAN}=== 16. init — git-aware ===${NC}"
+echo -e "\n${CYAN}=== 16. init — git-independent ===${NC}"
 
-GIT_DIR="$TESTDIR/git_test"
-mkdir -p "$GIT_DIR"
-cd "$GIT_DIR" && git init >/dev/null 2>&1 && git config user.email "test@test" && git config user.name "test"
-echo "# Tracked Doc" > "$GIT_DIR/tracked.md"
-echo "# Also Tracked" > "$GIT_DIR/also.md"
-cd "$GIT_DIR" && git add tracked.md also.md && git commit -m "init" >/dev/null 2>&1
-echo "# Untracked New" > "$GIT_DIR/untracked.md"
-echo "# Ignored" > "$GIT_DIR/.gitignore"
-echo "ignored.md" >> "$GIT_DIR/.gitignore"
-echo "# Should Be Ignored" > "$GIT_DIR/ignored.md"
+IGN_DIR="$TESTDIR/ign_test"
+mkdir -p "$IGN_DIR"
+echo "# Rules" > "$IGN_DIR/rules.md"
+echo "# Long Novel" > "$IGN_DIR/novel.md"
+echo "novel.md" > "$IGN_DIR/.gitignore"
 
-rundir "$BIN" init "$GIT_DIR" >/dev/null
+rundir "$BIN" init "$IGN_DIR" >/dev/null
 
-has_tracked=$(python3 -c "import json; d=json.load(open('$GIT_DIR/mdMap.json')); print('tracked.md' in d['docs'])")
-if [ "$has_tracked" = "True" ]; then pass "git: tracked.md indexed"; else fail "git: tracked.md missing"; fi
+has_rules=$(python3 -c "import json; d=json.load(open('$IGN_DIR/mdMap.json')); print('rules.md' in d['docs'])")
+if [ "$has_rules" = "True" ]; then pass "gitignored dir: rules.md indexed"; else fail "gitignored: rules.md missing"; fi
 
-has_untracked=$(python3 -c "import json; d=json.load(open('$GIT_DIR/mdMap.json')); print('untracked.md' in d['docs'])")
-if [ "$has_untracked" = "True" ]; then pass "git: untracked.md indexed"; else fail "git: untracked.md missing"; fi
+has_novel=$(python3 -c "import json; d=json.load(open('$IGN_DIR/mdMap.json')); print('novel.md' in d['docs'])")
+if [ "$has_novel" = "True" ]; then pass "gitignored dir: novel.md indexed (ignores .gitignore)"; else fail "gitignored: novel.md missing"; fi
 
-has_ignored=$(python3 -c "import json; d=json.load(open('$GIT_DIR/mdMap.json')); print('ignored.md' in d['docs'])")
-if [ "$has_ignored" = "False" ]; then pass "git: ignored.md excluded"; else fail "git: ignored.md should be excluded"; fi
-
-rm -rf "$GIT_DIR"
+rm -rf "$IGN_DIR"
 
 # ============================================================
 # Summary

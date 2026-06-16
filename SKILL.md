@@ -124,7 +124,7 @@ mdmap init ./docs
 - `~2`: 2 existing files changed (hash updated)
 - All existing metadata (type, summary, triggers, links, etc.) preserved
 
-If the directory is a git repo, `init` uses `git ls-files` to discover files (respects `.gitignore`). Otherwise, falls back to filesystem walk.
+mdMap is self-contained — no dependency on git. It discovers files via filesystem walk, detects changes via content hashing. Works identically whether or not git is installed.
 
 **Your job**: when you read an `unread` document (for any task, via any method — not just mdMap), update its entry afterward:
 

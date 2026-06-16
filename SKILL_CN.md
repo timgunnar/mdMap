@@ -124,7 +124,7 @@ mdmap init ./docs
 - `~2`：2 个已有 md 内容变化（hash 更新）
 - 所有已有元数据（type、summary、triggers、links 等）完整保留
 
-如果项目是 git 仓库，`init` 用 `git ls-files` 获取文件列表（尊重 `.gitignore`）。如果不是 git 仓库，走文件系统遍历。
+mdMap 完全自包含——不依赖 git。通过文件系统遍历发现文档，通过内容哈希检测变化。不管是否安装 git，行为完全一致。
 
 **你的任务**：当你因任何任务读了某一篇 `unread` 文档（不管通过什么方式，不限于 mdMap），读完后更新它的条目：
 

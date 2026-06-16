@@ -78,7 +78,7 @@ mdmap find --type checklist --tag "发布"          # 过滤搜索
 
 | 命令 | 做什么 |
 |:--|:--|
-| `init <dir>` | 可重入双向同步——永不覆盖元数据。git 仓库用 `git ls-files`，否则走文件遍历 |
+| `init <dir>` | 可重入双向同步——永不覆盖元数据。自包含，不依赖 git |
 | `find <path>` | 精确查找（O(1)） |
 | `find --search <文本>` | 语义字段模糊匹配（标题/摘要/定位） |
 | `find --trigger <文本>` | "这个任务该读什么？" |

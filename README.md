@@ -78,7 +78,7 @@ Trigger-based match:    ~200B
 
 | Command | What it does |
 |:--|:--|
-| `init <dir>` | Idempotent two-way sync — never overwrites metadata. Git-aware: uses `git ls-files` when available |
+| `init <dir>` | Idempotent two-way sync — never overwrites metadata. Self-contained, no git dependency |
 | `find <path>` | Exact document lookup (O(1)) |
 | `find --search <text>` | Filter by semantic fields (title/summary/positioning) |
 | `find --trigger <text>` | "What should I read for this task?" |

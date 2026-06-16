@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `init <dir>` — idempotent two-way sync: add new, remove deleted, update hashes for modified files. Never overwrites existing type/summary/links/triggers metadata. Git-aware: uses `git ls-files` when repo detected; falls back to filesystem walk. ≥50KB files automatically marked `status: "unread"` (title only, no hash, no content read — zero token cost)
+- `init <dir>` — idempotent two-way sync: add new, remove deleted, update hashes for modified files. Never overwrites existing type/summary/links/triggers metadata. Self-contained filesystem walk, no git dependency. ≥50KB files automatically marked `status: "unread"` (title only, no hash, no content read — zero token cost)
 - `find <path>` — exact document lookup by path (O(1))
 - `find --search <text>` — substring filter across semantic fields (title, summary, positioning)
 - `find --trigger <text>` — find documents by read-trigger condition

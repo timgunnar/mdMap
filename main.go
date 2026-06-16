@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -152,41 +151,24 @@ func cmdInit(args []string) {
 
 	diskFiles := make(map[string]os.FileInfo)
 
-	if isGitRepo(rootDir) {
-		curr, err := gitTrackedMdFiles(rootDir)
-		if err == nil {
-			for _, rel := range curr {
-				abs := filepath.Join(rootDir, rel)
-				if abs == schemaPath {
-					continue
-				}
-				if info, err := os.Stat(abs); err == nil {
-					diskFiles[rel] = info
-				}
+	filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			if info != nil && info.IsDir() && info.Name() == ".git" {
+				return filepath.SkipDir
 			}
-		}
-	}
-
-	if len(diskFiles) == 0 {
-		filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
-			if err != nil || info.IsDir() {
-				if info != nil && info.IsDir() && info.Name() == ".git" {
-					return filepath.SkipDir
-				}
-				return nil
-			}
-			if !strings.HasSuffix(info.Name(), ".md") {
-				return nil
-			}
-			absPath, _ := filepath.Abs(path)
-			if absPath == schemaPath {
-				return nil
-			}
-			relPath, _ := filepath.Rel(rootDir, path)
-			diskFiles[relPath] = info
 			return nil
-		})
-	}
+		}
+		if !strings.HasSuffix(info.Name(), ".md") {
+			return nil
+		}
+		absPath, _ := filepath.Abs(path)
+		if absPath == schemaPath {
+			return nil
+		}
+		relPath, _ := filepath.Rel(rootDir, path)
+		diskFiles[relPath] = info
+		return nil
+	})
 
 	added := 0
 	removed := 0
@@ -291,32 +273,6 @@ func cmdInit(args []string) {
 	}
 	fmt.Printf("  mdMap.json — document index\n")
 	fmt.Printf("  SCHEMA.md  — field reference for LLM maintenance\n")
-}
-
-func isGitRepo(dir string) bool {
-	cmd := exec.Command("git", "rev-parse", "--git-dir")
-	cmd.Dir = dir
-	return cmd.Run() == nil
-}
-
-func gitTrackedMdFiles(dir string) ([]string, error) {
-	cmd := exec.Command("git", "ls-files",
-		"--others", "--exclude-standard",
-		"--cached",
-		"--", "*.md")
-	cmd.Dir = dir
-	out, err := cmd.Output()
-	if err != nil {
-		return nil, err
-	}
-	var files []string
-	for _, line := range strings.Split(string(out), "\n") {
-		line = strings.TrimSpace(line)
-		if line != "" {
-			files = append(files, line)
-		}
-	}
-	return files, nil
 }
 
 func cmdFind(args []string) {
