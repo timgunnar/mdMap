@@ -11,35 +11,44 @@ mdMap is a zero-dependency CLI that builds a structured JSON index of your markd
 
 ## Why this exists
 
-### Without a map
+### The primitive navigation era
 
-A person walks into a city with no map. They need to find the publishing guide.
+There's a city with hundreds of buildings. Each building has a nameplate on the door. The nameplate might say "auth_v3.md" or "publish_checklist.md" — a hint, but just a hint. The actual content, the warnings on the wall, the directions to other buildings — all invisible from the street.
 
-They enter the first building. Read the signs on the wall: *"If you're deploying, see the CI/CD guide in Building D."* That's not what they need — but they had to enter the building to read the sign. Close the door. Walk to another. Enter. Read: *"Before publishing, check the security policy in Building F."* Not the publishing guide itself, but a sign pointing somewhere else. Close. Walk. Enter. Read signs. Close. Walk. Enter. Read signs. Close.
+In the pre-map era, agents navigate with two crude tools:
 
-Every building they enter is a wayfinding station. The terrain itself contains directions — *"if X, see Y.md"*, *"before Z, read W.md"* — scattered across dozens of documents. But you can only read those directions by entering each building. One wrong building leads to a sign pointing to another wrong building. It's not just that you open wrong files — it's that each wrong file tells you to open another one.
+**Tool 1: grep the nameplates.** They run `grep -rl "publish" docs/` hoping the right building has the word "publish" in its filename. Sometimes it works. Often it doesn't — the right building is called "release_guide.md", or the search returns 40 buildings including "publish_subscribe_pattern.md" which has nothing to do with publishing a tool. A filename search is a lottery. You bet tokens on a guess.
 
-This is the traditional `.md` ocean. Open. Read (mostly navigation instructions to other files). Close. Walk to the next one. Open. Read (more directions). Close. By the time you find the actual content you need, you've entered and exited ten buildings just following signs on the walls.
+**Tool 2: enter and hope.** Nameplate didn't help. They walk into a building that *sounds* right. Read the signs on the wall: *"If you're deploying, see the CI/CD guide in Building D."* Not what they need — but they had to enter to read the sign. Close. Walk to another. Enter. Read: *"Before publishing, check the security policy in Building F."* Not the publishing guide itself — another direction. Close. Walk. Enter. Read. Close.
 
-### With a map
+One wrong entry leads to a sign pointing to another wrong building. Each entrance costs context tokens. By the time they find the actual content, they've entered and exited ten buildings, following a chain of wall signs through the `.md` ocean. Most of what they read was navigation noise — not the content they needed, just signs telling them to go somewhere else.
 
-Someone hands them mdMap. It's an index card. On it, someone who walked this neighborhood before wrote:
+**Tool 3: give up and read everything.** When filename grep fails and the sign-following chain is too long, the agent opens every vaguely relevant file. Skims. Closes. Five files, twenty files. The task hasn't started yet and 30% of the context window is already gone.
+
+This is the status quo. grep filenames, guess from names, enter wrong buildings, follow signs, burn tokens. It works — barely — but it's slow, wasteful, and repetitive. Every agent reinvents the same navigation, every session.
+
+### The revolution
+
+Someone prints a card. On it:
 
 > `publish_checklist.md` — Step-by-step guide for releasing tools to GitHub
-> Signs on the door: "publishing a tool", "releasing", "shipping"
-> Connections: links to security_policy.md (must check before publishing)
+> Sign on the door: "publishing a tool", "releasing", "shipping"
+> Points to: security_policy.md (must check before publishing)
 
 They walk directly to that building. One door. Read. Done.
 
-But the card doesn't stop at one entry. Someone else walked past other buildings and added more. Now the card can answer:
+But the card is alive. Every agent who walks a street adds to it. Agent A labels auth_v3.md as `[rule]` with triggers for "authentication change". Agent B annotates the link from publish_checklist.md to security_policy.md. Agent C discovers that auth_v2.md says "superseded by auth_v3.md" and marks it `[deprecated]`.
 
-> "Show me every building with a red flag (rule) near 'auth'."
+The card now answers questions grep never could:
+
+> "Show me every red-flagged building (rule) near 'auth'."
 > "Which buildings point to the security policy?"
 > "Are there any signs pointing to demolished buildings?"
+> "Which buildings have 'draft' plaques?"
 
-The map copies the signs off every door and the connection notes off every wall into a flat, searchable surface. You no longer need to enter a building to know what's inside or where it points. The terrain — your `.md` files — is untouched. The map is a new layer on top.
+**This is the shift.** Grep scans nameplates — surface-level guesses about what's inside. mdMap queries semantic content extracted from inside the buildings. Nameplates answer "does this filename contain 'publish'?". mdMap answers "where is the step-by-step guide for releasing a tool, and is it the current version or deprecated?"
 
-**mdMap is that index card.** The Go CLI (`init`, `find`, `validate`, `changed`) makes it, queries it, checks it. Agents (you) annotate it. Nothing is replaced. The `.md` ocean is still there — you can swim in it whenever you want. The map just gives you a new option: look up where you're going before you walk.
+The terrain — your `.md` files — is untouched. The Go CLI (`init`, `find`, `validate`, `changed`) makes the card, queries it, checks it. Agents annotate it. You can still grep if you want. You can still walk in blind. But you no longer have to.
 
 ## The rule
 
