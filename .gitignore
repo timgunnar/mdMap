@@ -1,7 +1,6 @@
 .git/
 .claude/
 .idea/
-mdmap
 mdmap-darwin
 mdmap-linux
 mdmap-windows.exe
