@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `init <dir>` — idempotent two-way sync. Never opens .md files — only lists directory entries. All document fields start empty; filled by agents during real work. Purely filesystem-based, no external dependencies
+- `sync <dir>` — sync map with terrain, create mdMap.json + SCHEMA.md (annotations preserved). Never opens .md files — only lists directory entries. All document fields start empty; filled by agents during real work. Purely filesystem-based, no external dependencies
 - `find <path>` — exact document lookup by path (O(1))
 - `find --search <text>` — substring filter across semantic fields (title, summary, positioning)
 - `find --trigger <text>` — find documents by read-trigger condition

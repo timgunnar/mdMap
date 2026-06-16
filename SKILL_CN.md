@@ -1,6 +1,6 @@
 ---
 name: "mdMap"
-description: "Markdown 文档地图。将 markdown 文件索引为结构化 JSON 地图，提取文档内部的约束到表面。LLM 翻译，代码验证。除 init 外所有命令只读。"
+description: "Markdown 文档地图。将 markdown 文件索引为结构化 JSON 地图，提取文档内部的约束到表面。LLM 翻译，代码验证。除 sync 外所有命令只读。"
 ---
 
 # mdMap — Markdown 文档地图
@@ -82,15 +82,15 @@ mdmap find --search "发布"
 
 而且每有 Agent 走过就变得更好。Agent A 填了 publish_checklist.md 的 triggers。Agent B 加了指向 security_policy.md 的链接。Agent C 发现 auth_v2.md 已经 deprecated 并标记了它。索引有机增长——不在一次昂贵的全量遍历中完成，而是在 Agent 实际工作中一篇一篇地积累。
 
-地形——你的 `.md` 文件——纹丝不动。Go CLI（`init`、`find`、`validate`、`changed`）制作卡片、查询卡片、检查卡片。Agent 标注卡片。你还可以继续 grep。你还可以继续直接读文件。但你再也不需要在导航上烧掉 76% 的上下文窗口了。
+地形——你的 `.md` 文件——纹丝不动。Go CLI（`sync`、`find`、`validate`、`changed`）制作卡片、查询卡片、检查卡片。Agent 标注卡片。你还可以继续 grep。你还可以继续直接读文件。但你再也不需要在导航上烧掉 76% 的上下文窗口了。
 
 ## 规则
 
-**不知道要打开哪个文档时，先试 mdMap。** 如果返回结果，打开第一条。如果返回空（索引是空白——fresh init 之后常见），扫目录，按文件名挑最像的那个。
+**不知道要打开哪个文档时，先试 mdMap。** 如果返回结果，打开第一条。如果返回空（索引是空白——fresh sync 之后常见），扫目录，按文件名挑最像的那个。
 
 ## 地图是怎么画出来的
 
-有人跑过 `mdmap init`——制图工具扫描了每一条街，画出一张空白地图。每栋楼以空白条目的形式出现：它在真实地形上存在，但地图对它的描述为空。
+有人跑过 `mdmap sync`——制图工具扫描了每一条街，画出一张空白地图。每栋楼以空白条目的形式出现：它在真实地形上存在，但地图对它的描述为空。
 
 然后 Agent 开始走路。每有人走进一栋楼，就在地图上标注：这栋楼应该挂什么颜色的旗子、贴什么状态牌、门口有什么提示标语、指向哪些其他建筑。地图一条街一条街地填满。
 
@@ -205,7 +205,7 @@ mdmap find --search "auth migration"
 |------|---------|------------|
 | 地形 | 真实地理——你脚下的街道和建筑 | 磁盘上的 `.md` 文件 |
 | 地图 | 地形的平面表示——街道名、标注、笔记 | `mdMap.json` |
-| 制图工具 | 制作、对比、检查地图的仪器 | `mdmap init / changed / validate / find` |
+| 制图工具 | 制作、对比、检查地图的仪器 | `mdmap sync / changed / validate / find` |
 | 你 | 走路、阅读、判断、标注的人 | Agent |
 
 **工具不走地形。** 它们扫描目录生成地图，对比地图版本和磁盘，检查地图内部一致性，查找位置。零 LLM。纯结构。
@@ -243,7 +243,7 @@ mdmap find --search "auth migration"
 
 **不看地图直接走：**
 - 你知道确切路径，去过。
-- 项目刚 `mdmap init`，全是空的。
+- 项目刚 `mdmap sync`，全是空的。
 - 你用 `find` 查了，没结果——地图没覆盖这片。
 
 **查地图：**
@@ -286,13 +286,13 @@ mdmap find --search "auth migration"
                     例外：            例外：
                     文档在 map        文档在 map
                     中是空的         中标记 [active]
-                    （init 后），但你在文档里
+                    （sync 后），但你在文档里
                     即使觉得内容     发现了 "已被
                     很简单也要       ... 替代" →
                     填上。           改成 [deprecated]。
 ```
 
-**需要更新：** 地图里根本没这篇文档，地图里字段是空的（init 之后），地图的 type/summary/status/triggers 和你刚读到的不一致，文档引用了地图里没记录的其他文档，文档说已被替代但地图标着 active。
+**需要更新：** 地图里根本没这篇文档，地图里字段是空的（sync 之后），地图的 type/summary/status/triggers 和你刚读到的不一致，文档引用了地图里没记录的其他文档，文档说已被替代但地图标着 active。
 
 **不需要更新：** 地图已经准确描述了这篇文档。你读了，确认了地图上的一切，没有发现任何与地图矛盾的地方。不是每次经过都要在地图上写一笔——只有发现差异或填补空白时才写。
 
@@ -308,13 +308,13 @@ mdmap find --search "auth migration"
 | "rules.md"（type: checklist） | 文档里全是约束和规范 | type 分类错了 | 改成 type → rule |
 | trigger: "发布" | 文档实际讲的是部署，不是发布 | trigger 有误导 | 换成准确的 trigger 关键词 |
 | links → "old_design.md" | old_design.md 在磁盘上不存在 | 链接目标已被删 | 删除或更新这个 link |
-| 文档在地图里，但磁盘上没这个文件 | — | 文件被删/移动但地图没更新 | 跑 `mdmap init` 同步，或 `mdmap validate` 检测 |
+| 文档在地图里，但磁盘上没这个文件 | — | 文件被删/移动但地图没更新 | 跑 `mdmap sync` 同步，或 `mdmap validate` 检测 |
 
 **这些差异是你走出来的。** 地图不会自己告诉你它错了——只有地形能。你每次打开一篇文档，都在用地形验证地图。
 
 **工具也能帮你发现一些：**
 - `mdmap validate` 发现：磁盘有但地图没有（孤儿）、地图有但磁盘没有、链接指向 deprecated 文档、链接成环。
-- `mdmap changed` 发现：磁盘和上次 `init` 相比，新增或删除了哪些文件。
+- `mdmap changed` 发现：磁盘和上次 `sync` 相比，新增或删除了哪些文件。
 
 ---
 
@@ -323,7 +323,7 @@ mdmap find --search "auth migration"
 每有人走一条没走过的街道，地图就变得更好一点。
 
 ```
-第一天：mdmap init → 200 条空白条目
+第一天：mdmap sync → 200 条空白条目
         Agent A 走了 5 条街，标注了它们
         地图：5 条有标注，195 条空白
 
@@ -356,14 +356,14 @@ mdmap find --search "auth migration"
 | find 返回了结果，你读了文档 | 把文档内容和地图元数据做对比。一致 → 结束。不一致 → 更新地图。 |
 | 你已经知道文件路径 | 直接打开。不需要看地图。读完之后仍然检查：地图准确描述了这里吗？ |
 | 你读了文档，它引用了其他文档 | 更新地图的 `links` 字段。以后的 Agent 搜这篇文档就能发现那些关联，不用打开文件。 |
-| 你新建了一个 .md 文件 | 在 mdMap.json 添加条目，填好语义字段。不要等 `init` 捡到一个空白条目。 |
+| 你新建了一个 .md 文件 | 在 mdMap.json 添加条目，填好语义字段。不要等 `sync` 捡到一个空白条目。 |
 | `mdmap validate` 报告孤儿 | 磁盘有新文件但地图里没有。读它们，添加条目到 mdMap.json。 |
 | `mdmap validate` 报告断裂链接 | 某文档链接了不存在的东西。检查地形——目标被删了？移动了？修正或删除链接。 |
 | `mdmap validate` 报告陈旧链接 | 某文档链接了 deprecated/archived 文档。要不要把链接更新到替代版本？ |
 | `mdmap validate` 报告环路 | 文档互相链接成环。通常是错误——修正链接结构。 |
 | `mdmap changed` 报告新文件 | 有人往磁盘加了 .md 文件。读它们，添加条目到 mdMap.json。 |
-| `mdmap changed` 报告删除文件 | 文件从磁盘上消失了。跑 `mdmap init` 清理地图，或手动删除条目。 |
-| 你怀疑地图过时了 | 跑 `mdmap changed`。它会精确告诉你磁盘和上次 `init` 有什么不同。 |
+| `mdmap changed` 报告删除文件 | 文件从磁盘上消失了。跑 `mdmap sync` 清理地图，或手动删除条目。 |
+| 你怀疑地图过时了 | 跑 `mdmap changed`。它会精确告诉你磁盘和上次 `sync` 有什么不同。 |
 | 地图说 [deprecated]，你要找当前版本 | 读 deprecated 文档找到谁替代了它。沿着链接走。如果地图缺了这条链接，补上。 |
 | 你读的文档在地图里信息不全 | 把缺的字段填上。哪怕只加一个 summary 也比空白强。 |
 
@@ -371,7 +371,7 @@ mdmap find --search "auth migration"
 
 ```bash
 # 画地图 — 扫描每条街道，生成空白条目
-mdmap init ./docs
+mdmap sync ./docs
 
 # 查地图 — 按旗色、状态牌、门口提示、标签查建筑
 mdmap find --type rule --search "发布"

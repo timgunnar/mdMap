@@ -33,10 +33,10 @@ After:
 go install github.com/timgunnar/mdMap@latest
 
 # Index your project — 200 documents in 5ms
-mdmap init ./docs
+mdmap sync ./docs
 ```
 
-`init` scans the directory structure and writes `mdMap.json` + `SCHEMA.md`. It never opens .md files — just lists filenames. The semantic fields — what each document is about, when to read it, when to update it — start empty. Agents fill them when they naturally encounter documents during work.
+`sync` scans the directory structure and writes `mdMap.json` + `SCHEMA.md`. It never opens .md files — just lists filenames. The semantic fields — what each document is about, when to read it, when to update it — start empty. Agents fill them when they naturally encounter documents during work.
 
 ```bash
 # Ask your LLM to enrich the index:
@@ -62,7 +62,7 @@ mdmap find --type checklist --tag "publish"     # filtered search
 
 **Your conventions, not ours.** No hardcoded document types. No restricted status values. A software project might tag documents `checklist`, `architecture`, `api_spec`. A fiction writer might use `character_profile`, `chapter_outline`, `world_setting`. mdMap learns your vocabulary from SCHEMA.md and stays consistent.
 
-**Two tracks.** mdMap is a map, not a substitute for direct file access. Agents always open files normally. mdMap just tells them which one. Moved files? Reorganized folders? `mdmap init` re-syncs in one command.
+**Two tracks.** mdMap is a map, not a substitute for direct file access. Agents always open files normally. mdMap just tells them which one. Moved files? Reorganized folders? `mdmap sync` re-syncs in one command.
 
 ## The index you never see
 
@@ -78,7 +78,7 @@ Trigger-based match:    ~200B
 
 | Command | What it does |
 |:--|:--|
-| `init <dir>` | Idempotent two-way sync — never opens .md files. All fields start empty |
+| `sync <dir>` | Sync map with terrain, create mdMap.json + SCHEMA.md (annotations preserved) |
 | `find <path>` | Exact document lookup (O(1)) |
 | `find --search <text>` | Filter by semantic fields (title/summary/positioning) |
 | `find --trigger <text>` | "What should I read for this task?" |

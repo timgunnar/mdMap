@@ -27,9 +27,9 @@ echo "  build ok"
 rundir() { (cd "$DOCSDIR" && "$@"); }
 
 # ============================================================
-# Test: init
+# Test: sync
 # ============================================================
-echo -e "\n${CYAN}=== 1. init ===${NC}"
+echo -e "\n${CYAN}=== 1. sync ===${NC}"
 
 cat > "$DOCSDIR/architecture.md" << 'EOF'
 # Architecture Overview
@@ -58,13 +58,13 @@ cat > "$DOCSDIR/deprecated_migration.md" << 'EOF'
 This is obsolete.
 EOF
 
-"$BIN" init "$DOCSDIR" > /dev/null
+"$BIN" sync "$DOCSDIR" > /dev/null
 
 if [ -f "$DOCSDIR/mdMap.json" ]; then pass "mdMap.json created"; else fail "mdMap.json not created"; fi
 if [ -f "$DOCSDIR/SCHEMA.md" ]; then pass "SCHEMA.md created"; else fail "SCHEMA.md not created"; fi
 
 doc_count=$(python3 -c "import json; d=json.load(open('$DOCSDIR/mdMap.json')); print(len(d['docs']))")
-if [ "$doc_count" = "4" ]; then pass "init found 4 documents"; else fail "init found $doc_count docs (expected 4)"; fi
+if [ "$doc_count" = "4" ]; then pass "sync found 4 documents"; else fail "sync found $doc_count docs (expected 4)"; fi
 
 has_schema=$(python3 -c "import json; d=json.load(open('$DOCSDIR/mdMap.json')); print('SCHEMA.md' in d['docs'])")
 if [ "$has_schema" = "False" ]; then pass "SCHEMA.md excluded from index"; else fail "SCHEMA.md should not be indexed"; fi
@@ -307,7 +307,7 @@ PYEOF
 # ============================================================
 echo -e "\n${CYAN}=== 12. changed — new/deleted ===${NC}"
 
-"$BIN" init "$DOCSDIR" > /dev/null
+"$BIN" sync "$DOCSDIR" > /dev/null
 python3 << PYEOF
 import json
 with open("$DOCSDIR/mdMap.json") as f: m = json.load(f)
@@ -323,17 +323,17 @@ EOF
 result=$(rundir "$BIN" changed 2>&1)
 echo "$result" | grep -q "new: new_doc.md" && pass "changed detects new" || fail "changed new: $result"
 
-"$BIN" init "$DOCSDIR" > /dev/null
+"$BIN" sync "$DOCSDIR" > /dev/null
 rm "$DOCSDIR/new_doc.md"
 result=$(rundir "$BIN" changed 2>&1)
 echo "$result" | grep -q "deleted: new_doc.md" && pass "changed detects deleted" || fail "changed deleted: $result"
 
-"$BIN" init "$DOCSDIR" > /dev/null
+"$BIN" sync "$DOCSDIR" > /dev/null
 
 # ============================================================
-# Test: init — all fields empty (no file reading)
+# Test: sync — all fields empty (no file reading)
 # ============================================================
-echo -e "\n${CYAN}=== 13. init — zero file I/O ===${NC}"
+echo -e "\n${CYAN}=== 13. sync — zero file I/O ===${NC}"
 
 ZERO_DIR="$TESTDIR/zero_test"
 mkdir -p "$ZERO_DIR"
@@ -341,7 +341,7 @@ echo "# Rules Doc" > "$ZERO_DIR/rules.md"
 echo "# Big Novel Chapter 42: The Return" > "$ZERO_DIR/novel.md"
 dd if=/dev/zero bs=1024 count=52 >> "$ZERO_DIR/novel.md" 2>/dev/null
 
-rundir "$BIN" init "$ZERO_DIR" >/dev/null
+rundir "$BIN" sync "$ZERO_DIR" >/dev/null
 
 all_empty=$(python3 -c "
 import json
@@ -354,14 +354,14 @@ for k,v in d['docs'].items():
         exit()
 print('ALL_EMPTY')
 ")
-if [ "$all_empty" = "ALL_EMPTY" ]; then pass "init: all fields empty (no file reads)"; else fail "init fields: $all_empty"; fi
+if [ "$all_empty" = "ALL_EMPTY" ]; then pass "sync: all fields empty (no file reads)"; else fail "sync fields: $all_empty"; fi
 
 rm -rf "$ZERO_DIR"
 
 # ============================================================
-# Test: init — re-run preserves metadata, detects adds/deletes
+# Test: sync — re-run preserves metadata, detects adds/deletes
 # ============================================================
-echo -e "\n${CYAN}=== 14. init — idempotent resync ===${NC}"
+echo -e "\n${CYAN}=== 14. sync — annotations preserved on resync ===${NC}"
 
 SYNC_DIR="$TESTDIR/sync_test"
 mkdir -p "$SYNC_DIR"
@@ -369,7 +369,7 @@ echo "# Doc A" > "$SYNC_DIR/a.md"
 echo "# Doc B" > "$SYNC_DIR/b.md"
 echo "# Doc C" > "$SYNC_DIR/c.md"
 
-rundir "$BIN" init "$SYNC_DIR" >/dev/null
+rundir "$BIN" sync "$SYNC_DIR" >/dev/null
 python3 << PYEOF
 import json
 with open("$SYNC_DIR/mdMap.json") as f: m = json.load(f)
@@ -382,26 +382,26 @@ PYEOF
 rm "$SYNC_DIR/b.md"
 echo "# Doc D" > "$SYNC_DIR/d.md"
 
-rundir "$BIN" init "$SYNC_DIR" >/dev/null
+rundir "$BIN" sync "$SYNC_DIR" >/dev/null
 
 count=$(python3 -c "import json; d=json.load(open('$SYNC_DIR/mdMap.json')); print(len(d['docs']))")
-if [ "$count" = "3" ]; then pass "re-init: 3 docs (b removed, d added)"; else fail "re-init count: $count (expected 3)"; fi
+if [ "$count" = "3" ]; then pass "re-sync: 3 docs (b removed, d added)"; else fail "re-sync count: $count (expected 3)"; fi
 
 has_d=$(python3 -c "import json; d=json.load(open('$SYNC_DIR/mdMap.json')); print('d.md' in d['docs'])")
-if [ "$has_d" = "True" ]; then pass "re-init: d.md added"; else fail "re-init: d.md missing"; fi
+if [ "$has_d" = "True" ]; then pass "re-sync: d.md added"; else fail "re-sync: d.md missing"; fi
 
 has_b=$(python3 -c "import json; d=json.load(open('$SYNC_DIR/mdMap.json')); print('b.md' in d['docs'])")
-if [ "$has_b" = "False" ]; then pass "re-init: b.md removed"; else fail "re-init: b.md still present"; fi
+if [ "$has_b" = "False" ]; then pass "re-sync: b.md removed"; else fail "re-sync: b.md still present"; fi
 
 meta=$(python3 -c "import json; d=json.load(open('$SYNC_DIR/mdMap.json')); doc=d['docs']['a.md']; print(doc.get('type','')+'|'+doc.get('summary','')+'|'+doc.get('status',''))")
-if [ "$meta" = "rule|Rule A|active" ]; then pass "re-init: metadata preserved"; else fail "re-init metadata lost: $meta"; fi
+if [ "$meta" = "rule|Rule A|active" ]; then pass "re-sync: annotations preserved"; else fail "re-sync annotations lost: $meta"; fi
 
 rm -rf "$SYNC_DIR"
 
 # ============================================================
-# Test: init — git-ignored files ARE indexed (mdMap owns all md)
+# Test: sync — git-ignored files ARE indexed (mdMap owns all md)
 # ============================================================
-echo -e "\n${CYAN}=== 15. init — git-independent ===${NC}"
+echo -e "\n${CYAN}=== 15. sync — git-independent ===${NC}"
 
 IGN_DIR="$TESTDIR/ign_test"
 mkdir -p "$IGN_DIR"
@@ -409,7 +409,7 @@ echo "# Rules" > "$IGN_DIR/rules.md"
 echo "# Long Novel" > "$IGN_DIR/novel.md"
 echo "novel.md" > "$IGN_DIR/.gitignore"
 
-rundir "$BIN" init "$IGN_DIR" >/dev/null
+rundir "$BIN" sync "$IGN_DIR" >/dev/null
 
 has_rules=$(python3 -c "import json; d=json.load(open('$IGN_DIR/mdMap.json')); print('rules.md' in d['docs'])")
 if [ "$has_rules" = "True" ]; then pass "gitignored dir: rules.md indexed"; else fail "gitignored: rules.md missing"; fi

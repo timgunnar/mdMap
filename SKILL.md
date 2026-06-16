@@ -1,6 +1,6 @@
 ---
 name: "mdMap"
-description: "Markdown document map. Index markdown files into a structured JSON map with triggers, links, and CRUD lifecycle hooks. LLM translates, code verifies. All commands are read-only except init."
+description: "Markdown document map. Index markdown files into a structured JSON map with triggers, links, and CRUD lifecycle hooks. LLM translates, code verifies. All commands are read-only except sync."
 ---
 
 # mdMap — Markdown Document Map
@@ -82,15 +82,15 @@ Here's what mdMap adds to every result that grep can't provide:
 
 And it gets better with every agent who walks through. Agent A filled in publish_checklist.md's triggers. Agent B added the link to security_policy.md. Agent C discovered auth_v2.md was deprecated and marked it. The index grows organically — not in one expensive pass, but document by document as agents encounter them during real work.
 
-The terrain — your `.md` files — is untouched. The Go CLI (`init`, `find`, `validate`, `changed`) makes the card, queries it, checks it. Agents annotate it. You can still grep if you want. You can still read files directly. But you no longer have to spend 76% of your context window on navigation.
+The terrain — your `.md` files — is untouched. The Go CLI (`sync`, `find`, `validate`, `changed`) makes the card, queries it, checks it. Agents annotate it. You can still grep if you want. You can still read files directly. But you no longer have to spend 76% of your context window on navigation.
 
 ## The rule
 
-**When you don't know which document to open: try mdMap first.** If it returns results, open the top match. If it returns nothing (the index is blank — common after a fresh `init`), scan the directory and pick the most likely file by filename.
+**When you don't know which document to open: try mdMap first.** If it returns results, open the top match. If it returns nothing (the index is blank — common after a fresh `sync`), scan the directory and pick the most likely file by filename.
 
 ## How the map was made
 
-Someone ran `mdmap init` — the cartography tool that scans every street and draws a blank map. Every building appears as an empty entry: it exists on the terrain, but the map says nothing about it.
+Someone ran `mdmap sync` — the cartography tool that scans every street and draws a blank map. Every building appears as an empty entry: it exists on the terrain, but the map says nothing about it.
 
 Then agents walked the streets. Each time someone entered a building, they annotated the map: what flag color it should have, what condition plaque, what signs are on the door, what other buildings it points to. The map filled in street by street.
 
@@ -206,7 +206,7 @@ You are a person with a map, walking real terrain.
 |---------|-----------|---------|
 | the terrain | real geography — what you walk through | `.md` files on disk |
 | the map | a flat representation of the terrain — streets, labels, notes | `mdMap.json` |
-| the cartography tools | instruments that create, compare, and check maps | `mdmap init / changed / validate / find` |
+| the cartography tools | instruments that create, compare, and check maps | `mdmap sync / changed / validate / find` |
 | you | the person who walks, reads, judges, annotates | the Agent |
 
 **The tools don't walk the terrain.** They produce maps from directory scans, compare map versions against disk, check the map's internal consistency, look things up. Zero LLM. Structural only.
@@ -247,7 +247,7 @@ You are a person with a map, walking real terrain.
 
 **When to skip the map entirely:**
 - You know the exact path. You've been there before.
-- The project just finished `mdmap init` — everything is blank.
+- The project just finished `mdmap sync` — everything is blank.
 - You tried `find` and got nothing — the map doesn't cover this area.
 
 **When to consult the map:**
@@ -293,7 +293,7 @@ You read a document for any reason — a task, curiosity, a `find` result. After
                    if the document   if the document
                    was blank in      was marked
                    the map (fresh    [active] but
-                   after init),      you found a note
+                   after sync),      you found a note
                    fill it in        saying it was
                    even if you       superseded → set
                    think the         it to [deprecated].
@@ -301,7 +301,7 @@ You read a document for any reason — a task, curiosity, a `find` result. After
                    obvious.
 ```
 
-**When to update:** the map is missing the document entirely, the map has empty fields (fresh after init), the map's type/summary/status/triggers don't match what you just read, the document references other documents the map doesn't link to, the document says it was superseded but the map says active.
+**When to update:** the map is missing the document entirely, the map has empty fields (fresh after sync), the map's type/summary/status/triggers don't match what you just read, the document references other documents the map doesn't link to, the document says it was superseded but the map says active.
 
 **When NOT to update:** the map already accurately describes the document. You read it, confirmed everything the map says, learned nothing that contradicts the map. Not every visit requires a map annotation — only when you discover a discrepancy or complete a blank entry.
 
@@ -317,13 +317,13 @@ Sometimes the map is outright wrong — not just incomplete.
 | "rules.md" (type: checklist) | doc body is all constraints and policies | wrong type classification | change type → rule |
 | trigger: "publishing" | doc is actually about deployment, not publishing | trigger is misleading | replace trigger with accurate keywords |
 | links → "old_design.md" | old_design.md doesn't exist on disk | link target was deleted | remove or update the link |
-| doc is in map but file doesn't exist on disk | — | file was deleted/moved without updating map | run `mdmap init` to re-sync, or `mdmap validate` to detect |
+| doc is in map but file doesn't exist on disk | — | file was deleted/moved without updating map | run `mdmap sync` to re-sync, or `mdmap validate` to detect |
 
 **You catch these discrepancies by walking.** The map can't tell you it's wrong — only the terrain can. Every time you open a document, you're validating the map against reality.
 
 **The tools catch some of them too:**
 - `mdmap validate` finds: files on disk not in map (orphans), map entries pointing to missing files, links to deprecated docs, link cycles.
-- `mdmap changed` finds: files added to or removed from disk since last `init`.
+- `mdmap changed` finds: files added to or removed from disk since last `sync`.
 
 ---
 
@@ -332,7 +332,7 @@ Sometimes the map is outright wrong — not just incomplete.
 The map gets better every time someone walks a street they haven't walked before.
 
 ```
-Day 1: mdmap init → 200 blank entries
+Day 1: mdmap sync → 200 blank entries
        Agent A walks 5 streets, labels them
        Map: 5 labeled, 195 blank
 
@@ -365,14 +365,14 @@ Day N: 80 streets labeled. find --search is genuinely useful.
 | find returns a result, you read the doc | Compare doc content against map metadata. If they match → done. If they don't → update the map. |
 | You already know the file path | Open it directly. No need to consult the map. After reading, still check: does the map accurately describe this place? |
 | You read a doc and it references other docs | Update the map's `links` field. Future agents searching for this doc will discover those connections without opening it. |
-| You create a new .md file | Add its entry to mdMap.json with full semantic fields. Don't wait for `init` to pick it up as a blank entry. |
+| You create a new .md file | Add its entry to mdMap.json with full semantic fields. Don't wait for `sync` to pick it up as a blank entry. |
 | `mdmap validate` reports orphans | New files exist on disk but aren't in the map. Read them, add entries to mdMap.json. |
 | `mdmap validate` reports broken links | A document links to something that doesn't exist. Check the terrain — was the target deleted? Moved? Fix or remove the link. |
 | `mdmap validate` reports stale links | A document links to a deprecated/archived doc. Should the link be updated to the replacement? |
 | `mdmap validate` reports cycles | Documents link to each other in a loop. Usually a mistake — fix the link structure. |
 | `mdmap changed` reports new files | Someone added .md files to disk. Read them, add entries to mdMap.json. |
-| `mdmap changed` reports deleted files | Files removed from disk. Run `mdmap init` to clean up the map, or manually remove the entries. |
-| You suspect the map is out of sync | Run `mdmap changed`. It tells you exactly what differs between disk and the last `init`. |
+| `mdmap changed` reports deleted files | Files removed from disk. Run `mdmap sync` to clean up the map, or manually remove the entries. |
+| You suspect the map is out of sync | Run `mdmap changed`. It tells you exactly what differs between disk and the last `sync`. |
 | The map says [deprecated], you need the current version | Read the deprecated doc to find what superseded it. Then follow that link. Update the map if the link is missing. |
 | The map has incomplete info for a doc you're reading | Fill in the missing fields. Even partial updates help: just adding a summary is better than blank. |
 
@@ -380,7 +380,7 @@ Day N: 80 streets labeled. find --search is genuinely useful.
 
 ```bash
 # Create the map — scan every street, draw blank entries
-mdmap init ./docs
+mdmap sync ./docs
 
 # Query the map — find buildings by flag, plaque, signs, labels
 mdmap find --type rule --search "publishing"

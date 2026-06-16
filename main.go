@@ -40,7 +40,7 @@ func main() {
 	if len(os.Args) < 2 {
 		fmt.Fprintln(os.Stderr, "mdMap: markdown document index and query engine. we map your docs, you find them.")
 		fmt.Fprintln(os.Stderr, "usage: mdmap <command> [flags]")
-		fmt.Fprintln(os.Stderr, "  init <dir>     scan directory, create mdMap.json + SCHEMA.md")
+		fmt.Fprintln(os.Stderr, "  sync <dir>     sync map with terrain, create mdMap.json + SCHEMA.md (annotations preserved)")
 		fmt.Fprintln(os.Stderr, "  find <flags>   search documents by path, search, trigger, type, tag")
 		fmt.Fprintln(os.Stderr, "  validate       integrity checks (orphans, broken links, cycles)")
 		fmt.Fprintln(os.Stderr, "  changed        show what changed since last index")
@@ -48,8 +48,8 @@ func main() {
 	}
 
 	switch os.Args[1] {
-	case "init":
-		cmdInit(os.Args[2:])
+	case "sync":
+		cmdSync(os.Args[2:])
 	case "find":
 		cmdFind(os.Args[2:])
 	case "validate":
@@ -113,8 +113,8 @@ func scanDiskMdFiles(rootDir string) map[string]struct{} {
 	return files
 }
 
-func cmdInit(args []string) {
-	flags := flag.NewFlagSet("init", flag.ExitOnError)
+func cmdSync(args []string) {
+	flags := flag.NewFlagSet("sync", flag.ExitOnError)
 	flags.Parse(args)
 
 	rootDir := "."
@@ -195,9 +195,9 @@ func cmdInit(args []string) {
 - **maintains**: When should this document be updated? Same substring-matching principle as triggers. Include diverse keywords. Each maintain is one sentence describing a maintenance trigger.
 - **retires**: When can this document be safely deprecated? Same substring-matching principle. Each retire is one sentence describing a retirement condition.
 
-## Important: init does NOT read .md files
+## Important: sync does NOT read .md files
 
-Init only scans the filesystem — it lists directory entries, never opens .md files. All fields (title, type, summary, status, links, triggers, maintains, retires) start empty. You fill them in when you encounter documents during real work. This keeps init instant (no file I/O) and token-free at startup.
+Sync only scans the filesystem — it lists directory entries, never opens .md files. All fields (title, type, summary, status, links, triggers, maintains, retires) start empty for new files, but existing annotations are always preserved. You fill them in when you encounter documents during real work. This keeps sync instant (no file I/O) and safe to run anytime.
 
 ## Project Convention
 
