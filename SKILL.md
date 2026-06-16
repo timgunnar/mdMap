@@ -86,7 +86,21 @@ The terrain — your `.md` files — is untouched. The Go CLI (`sync`, `find`, `
 
 ## The rule
 
-**When you don't know which document to open: try mdMap first.** If it returns results, open the top match. If it returns nothing (the index is blank — common after a fresh `sync`), scan the directory and pick the most likely file by filename.
+**mdMap is a lookup tool, not a recommendation engine.**
+
+When you query the map:
+
+```
+mdmap find --type rule --search "publishing"
+```
+
+mdMap returns **every record that matches your conditions**. Each result is a full row: path, type, status, summary, title, tags — everything the map knows about that document. Like SQL: `SELECT * FROM docs WHERE type='rule' AND (title LIKE '%publishing%' OR summary LIKE '%publishing%')`.
+
+**mdMap does no sorting, no ranking, no recommendation.** The order of results has no meaning. There is no "top match", no "best result". The map returns raw data — the same way a database returns rows.
+
+**You read every returned summary. You decide.** After looking at all returned rows, you judge which document (or documents) to open. You might open one. You might open three. You might read none — the summaries were enough to determine that none of these documents are what you need. In that case, the map doesn't cover this area yet — you scan the directory yourself, read promising files, and label the map afterward.
+
+**The map is a filter, not a guide.** It narrows the ocean of `.md` files to the set that match your conditions. Everything after that — which door to open, how many to enter, what order to walk in — is your judgment.
 
 ## How the map was made
 
@@ -118,29 +132,26 @@ mdmap validate  # checks: Are there signs pointing to demolished buildings?
 
 ## How to query the map
 
-`mdmap find` is a map lookup. Each flag is a dimension you filter by.
+`mdmap find` is a map lookup. Each flag is a dimension you filter by. The result is a set of full records — like SQL rows.
 
 ```
-Find every building with flag=rule, status=active, and "publishing"
-mentioned in its name or description.
+Find every record where type=rule AND title/summary contains "publishing".
 
-  --type rule     building category (rule = red flag, checklist, guide…)
-  --status active  building condition (active, deprecated, draft, archived)
-  --search "pub"   text on the building's label or description
+  --type rule     document type (rule, checklist, guide…)
+  --search "pub"   substring match on title, summary, positioning
 ```
 
-The underlying engine is equivalent to SQL: exact fields use `=` filtering, semantic fields use `LIKE` substring matching.
-
-**The map returns at most 2-5 buildings.** Your semantic judgment on 2-5 one-line summaries beats any ranking algorithm. If the first doesn't match, check the second.
+The underlying engine is equivalent to SQL: exact fields use `=` filtering, semantic fields use `LIKE` substring matching. Every row that passes all conditions is returned. No ordering, no ranking.
 
 ```bash
-# You need to publish project-a → probably need rules about publishing
 mdmap find --type rule --search "project a"
 # [rule]  project_a_publish.md  — Publishing rules for project-a: GitHub releases
 # [rule]  project_b_publish.md  — Publishing rules for project-b: npm publish
 
-# First summary matches → open it. Done.
+# You read both summaries. project_a_publish.md matches your task → open it.
 ```
+
+**You evaluate all returned rows.** The map gives you the data — path, type, status, summary — for every matching document. You read all the summaries and decide which documents to open. You make all the judgment calls. The map is a filter, not a curator.
 
 **Why triggers are separate from search:**
 
@@ -241,8 +252,8 @@ You are a person with a map, walking real terrain.
                     ▼               ▼
               query the map:   walk freely:
               mdmap find       scan dir,
-              --search         pick by
-                               filename
+              --search         read files
+                               directly
 ```
 
 **When to skip the map entirely:**
@@ -359,10 +370,10 @@ Day N: 80 streets labeled. find --search is genuinely useful.
 
 | scenario | what you do |
 |----------|------------|
-| Map is blank, you need to find a doc | Scan the directory yourself. Pick by filename. Read the best candidate. Label it on the map. |
-| Map has labels, you need to find a doc | `mdmap find --search "..." --type rule`. Read the top result. |
-| find returns empty (map doesn't cover this area) | Scan the directory yourself. Pick by filename. After reading, label the map. |
-| find returns a result, you read the doc | Compare doc content against map metadata. If they match → done. If they don't → update the map. |
+| Map is blank, you need to find a doc | Scan the directory yourself. Read promising files. Label them on the map afterward. |
+| Map has labels, you need to find a doc | `mdmap find --search "..." --type rule`. Review all returned summaries. Decide which to open. |
+| find returns empty (map doesn't cover this area) | Scan the directory yourself. Read promising files. After reading, label the map. |
+| find returns results, you review them | Read all summaries. Decide which documents to open (could be one, could be several). Then read them. |
 | You already know the file path | Open it directly. No need to consult the map. After reading, still check: does the map accurately describe this place? |
 | You read a doc and it references other docs | Update the map's `links` field. Future agents searching for this doc will discover those connections without opening it. |
 | You create a new .md file | Add its entry to mdMap.json with full semantic fields. Don't wait for `sync` to pick it up as a blank entry. |
