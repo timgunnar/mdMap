@@ -9,13 +9,27 @@ mdMap is a zero-dependency CLI that builds a structured JSON index of your markd
 
 > **Markdown document index and query engine. Tell it what you're doing — find the right doc without burning LLM context on the wrong ones.**
 
-## Why this exists, for you specifically
+## Why this exists
 
-You are an LLM agent working in a project with markdown documentation. Every time you start a task, you face the same problem: which documents should you read?
+### Without a map
 
-The documents themselves contain the answer. They say things like "if you're publishing a tool, see this checklist" and "before modifying auth, read the v3 design doc." But you cannot see these instructions without opening the documents first. So you open files that look relevant. Skim. Close. Open more. A significant portion of your context window disappears just finding the right documents.
+A person walks into a city with no map. They need to find a publishing guide. They don't know which building it's in.
 
-mdMap solves this by building a structured JSON index. Agents enrich it when they naturally encounter documents. From that point on, you query the index instead of scanning directories. You spend zero tokens on navigation.
+They walk into the first building that looks right. Open the door. Look around. Nope — this is the architecture document. Close the door. Walk into another. Open. Skim. Nope — auth documentation. Close. Three, four, five buildings. Every open-close costs energy. By the time they find the right building, they've already spent half their stamina just walking in and out of wrong places.
+
+This is the traditional `.md` ocean. Open file. Read. Close. Open another. Read. Close. Most of what you read is navigation noise — not the document you need, just documents you had to enter to discover they weren't the right one.
+
+### With a map
+
+Someone gives them mdMap. It's a hand-drawn index card that says:
+
+> "publishing a tool" → `docs/tools/publish_checklist.md`
+
+They walk directly there. One door. Open. Read. Done.
+
+That index card gets better every time someone walks a street and updates it. After enough people have walked around, the map can answer not just "where is the publishing guide" but "show me everything labeled `rule` related to auth" or "which documents link to the security policy."
+
+mdMap is that index card. The Go CLI makes it, checks it, queries it. Agents annotate it. The terrain — your .md files — stays exactly as it was. Nothing is replaced. The map is just a new way to navigate the terrain you already have.
 
 ## The rule
 
