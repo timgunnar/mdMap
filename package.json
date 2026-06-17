@@ -1,6 +1,6 @@
 {
   "name": "@timgunnar/mdmap",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Markdown document index and query engine. Tell it what you're doing — find the right doc without burning LLM context on the wrong ones.",
   "keywords": [
     "mdmap",

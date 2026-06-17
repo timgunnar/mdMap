@@ -1,6 +1,6 @@
 ---
 name: "mdMap"
-description: "Markdown document map. Index markdown files into a structured JSON map with triggers, links, and CRUD lifecycle hooks. LLM translates, code verifies. All commands are read-only except sync."
+description: "Markdown document map. Triggers when user mentions mdMap, document map, mdmap sync, mdmap find, find docs, or updating the map. Reviews recently-read documents and updates mdMap.json annotations. All commands read-only except sync."
 ---
 
 # mdMap — Markdown Document Map
@@ -8,6 +8,18 @@ description: "Markdown document map. Index markdown files into a structured JSON
 mdMap is a zero-dependency CLI that builds a structured JSON index of your markdown files — letting agents search by type, status, and semantic content without opening wrong documents.
 
 > **Markdown document index and query engine. Tell it what you're doing — find the right doc without burning LLM context on the wrong ones.**
+
+## ⚠️ Mandatory Rule: Update At Task Milestones
+
+**At the end of each task milestone** (a multi-step operation completes, a standalone task wraps up, before ending a conversation), review all .md files read during this task phase and update:
+
+1. **Is it in mdMap.json?** → Not found: add to mdMap.json with title/summary/type/status/triggers filled
+2. **Are fields empty?** → title/summary/type/status blank → fill them in
+3. **Is info stale?** → what you just read conflicts with the map → update
+
+**Trigger threshold**: ≥3 .md files read → must execute one batch update. Do this before completing the task, not after every single Read.
+
+> Don't batch-label the entire map. Only update documents you actually read during this task. Empty fields aren't bugs — nobody needed that building yet.
 
 ## Why this exists
 
@@ -108,7 +120,7 @@ Someone ran `mdmap sync` — the cartography tool that scans every street and dr
 
 Then agents walked the streets. Each time someone entered a building, they annotated the map: what flag color it should have, what condition plaque, what signs are on the door, what other buildings it points to. The map filled in street by street.
 
-The map lives in `mdMap.json`. The legend (what each field means, which flag colors and plaques are valid) lives in `SCHEMA.md`. Never read the full `mdMap.json` — always query it through the CLI.
+The map lives in `mdMap.json`. The legend (what each field means, which flag colors and plaques are valid) is part of this skill doc. Never read the full `mdMap.json` — always query it through the CLI.
 
 ## The map's hidden power: signs and connections
 

@@ -42,11 +42,11 @@ go install github.com/timgunnar/mdMap@latest
 mdmap sync ./docs
 ```
 
-`sync` scans the directory structure and writes `mdMap.json` + `SCHEMA.md`. It never opens .md files — just lists filenames. The semantic fields — what each document is about, when to read it, when to update it — start empty. Agents fill them when they naturally encounter documents during work.
+`sync` scans the directory structure and writes `mdMap.json`. It never opens .md files — just lists filenames. The semantic fields — what each document is about, when to read it, when to update it — start empty. Agents fill them when they naturally encounter documents during work.
 
 ```bash
 # Ask your LLM to enrich the index:
-# "Read SCHEMA.md. For each document in mdMap.json with empty fields,
+# "Read the schema section at the top of this skill doc. For each document in mdMap.json with empty fields,
 #  read the doc, extract type/summary/triggers/links, write back."
 
 # After that, you never scan directories again.
@@ -66,7 +66,7 @@ mdmap find --type checklist --tag "publish"     # filtered search
 
 **One LLM pass, then pure code.** Agents evaluate and update semantic fields when they naturally encounter documents during work. After that, every query runs in compiled Go — O(1) lookups, zero tokens, zero guesswork. `validate` runs four deterministic checks (orphan detection, broken links, cycles, stale references) with no LLM involvement.
 
-**Your conventions, not ours.** No hardcoded document types. No restricted status values. A software project might tag documents `checklist`, `architecture`, `api_spec`. A fiction writer might use `character_profile`, `chapter_outline`, `world_setting`. mdMap learns your vocabulary from SCHEMA.md and stays consistent.
+**Your conventions, not ours.** No hardcoded document types. No restricted status values. A software project might tag documents `checklist`, `architecture`, `api_spec`. A fiction writer might use `character_profile`, `chapter_outline`, `world_setting`. mdMap learns your vocabulary from the schema section in this skill doc and stays consistent.
 
 **Two tracks.** mdMap is a map, not a substitute for direct file access. Agents always open files normally. mdMap just tells them which one. Moved files? Reorganized folders? `mdmap sync` re-syncs in one command.
 
@@ -84,7 +84,7 @@ Trigger-based match:    ~200B
 
 | Command | What it does |
 |:--|:--|
-| `sync <dir>` | Sync map with terrain, create mdMap.json + SCHEMA.md (annotations preserved) |
+| `sync <dir>` | Sync map with terrain, create mdMap.json (annotations preserved) |
 | `find <path>` | Exact document lookup (O(1)) |
 | `find --search <text>` | Filter by semantic fields (title/summary/positioning) |
 | `find --trigger <text>` | "What should I read for this task?" |

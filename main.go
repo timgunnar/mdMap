@@ -40,7 +40,7 @@ func main() {
 	if len(os.Args) < 2 {
 		fmt.Fprintln(os.Stderr, "mdMap: markdown document index and query engine. we map your docs, you find them.")
 		fmt.Fprintln(os.Stderr, "usage: mdmap <command> [flags]")
-		fmt.Fprintln(os.Stderr, "  sync <dir>     sync map with terrain, create mdMap.json + SCHEMA.md (annotations preserved)")
+		fmt.Fprintln(os.Stderr, "  sync <dir>     sync map with terrain, create mdMap.json (annotations preserved)")
 		fmt.Fprintln(os.Stderr, "  find <flags>   search documents by path, search, trigger, type, tag")
 		fmt.Fprintln(os.Stderr, "  validate       integrity checks (orphans, broken links, cycles)")
 		fmt.Fprintln(os.Stderr, "  changed        show what changed since last index")
@@ -88,9 +88,6 @@ func saveMap(m *MapFile, rootDir string) error {
 }
 
 func scanDiskMdFiles(rootDir string) map[string]struct{} {
-	absRoot, _ := filepath.Abs(rootDir)
-	schemaPath := filepath.Join(absRoot, "SCHEMA.md")
-
 	files := make(map[string]struct{})
 	filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {
@@ -100,10 +97,6 @@ func scanDiskMdFiles(rootDir string) map[string]struct{} {
 			return nil
 		}
 		if !strings.HasSuffix(info.Name(), ".md") {
-			return nil
-		}
-		absPath, _ := filepath.Abs(path)
-		if absPath == schemaPath {
 			return nil
 		}
 		relPath, _ := filepath.Rel(rootDir, path)
@@ -121,9 +114,6 @@ func cmdSync(args []string) {
 	if flags.NArg() > 0 {
 		rootDir = flags.Arg(0)
 	}
-
-	absRoot, _ := filepath.Abs(rootDir)
-	schemaPath := filepath.Join(absRoot, "SCHEMA.md")
 
 	existing, _ := loadMap(rootDir)
 
@@ -164,47 +154,6 @@ func cmdSync(args []string) {
 		os.Exit(1)
 	}
 
-	schema := `# mdMap Schema
-
-## Fields
-
-- **title**: Document title.
-- **type**: Document type. Two types are defined by mdMap and must be used consistently:
-
-  **` + "`rule`" + `** — a constraint document that governs HOW tasks should be executed. When an agent performs a task, it MUST follow applicable rules. Examples: coding standards, architectural principles, security policies, compliance requirements, naming conventions.
-
-  **` + "`resource`" + `** — a standalone reference document with no indexing relationships. It exists to be consulted, not to constrain execution. Examples: long-form narrative text, world-building documents, fiction chapters, historical reference notes, external spec PDFs converted to markdown.
-
-  For all other documents, use project-specific types. Look at existing documents for convention. Common examples: ` + "`checklist`" + `, ` + "`architecture`" + `, ` + "`design_proposal`" + `, ` + "`api_spec`" + `, ` + "`guide`" + `, ` + "`tutorial`" + `, ` + "`decision_record`" + `, ` + "`meeting_notes`" + `, ` + "`postmortem`" + `.
-
-- **summary**: One-sentence summary (≤80 chars). Answers "what is this document about".
-- **positioning**: One-sentence positioning in the knowledge system. Answers "what role does this document play".
-- **status**: Document lifecycle state. Four statuses are defined by mdMap and must be used consistently:
-
-  **` + "`active`" + `** — the current, authoritative version. This is the document agents should read.
-
-  **` + "`deprecated`" + `** — replaced by a newer version or no longer applicable. Do not use as primary reference. A deprecated document should have a ` + "`superseded_by`" + ` link or a retirement reason in its ` + "`retires`" + ` field.
-
-  **` + "`draft`" + `** — work in progress. Content may change. Agents may consult for direction but should not treat it as final authority.
-
-  **` + "`archived`" + `** — historical record, kept for reference only. Not part of the active knowledge graph. Agents should only open it when explicitly asked to review history.
-
-- **tags**: Free-form tags. Reuse existing tags for consistency.
-- **links**: Navigation hints found in the document body ("See also", "For details see", "Supersedes", etc.). Each link has a target path and a natural-language reason.
-- **triggers**: When should someone read this document? Used for find --trigger queries, which match by substring. Include multiple phrasings covering different ways users might express the same intent. Cover common synonyms and keywords that people who need this document would naturally search for. Example: for a publishing guide, include "publishing a tool", "npm publish", "releasing to GitHub", "shipping a release" — not just one phrasing.
-- **maintains**: When should this document be updated? Same substring-matching principle as triggers. Include diverse keywords. Each maintain is one sentence describing a maintenance trigger.
-- **retires**: When can this document be safely deprecated? Same substring-matching principle. Each retire is one sentence describing a retirement condition.
-
-## Important: sync does NOT read .md files
-
-Sync only scans the filesystem — it lists directory entries, never opens .md files. All fields (title, type, summary, status, links, triggers, maintains, retires) start empty for new files, but existing annotations are always preserved. You fill them in when you encounter documents during real work. This keeps sync instant (no file I/O) and safe to run anytime.
-
-## Project Convention
-
-(Will be populated after the first batch of documents is indexed by an LLM.)
-`
-	os.WriteFile(schemaPath, []byte(schema), 0644)
-
 	fmt.Printf("mdMap: synced %d documents in %s\n", len(m.Docs), rootDir)
 	parts := []string{}
 	if added > 0 {
@@ -217,7 +166,6 @@ Sync only scans the filesystem — it lists directory entries, never opens .md f
 		fmt.Printf("  %s\n", strings.Join(parts, " "))
 	}
 	fmt.Printf("  mdMap.json — document index\n")
-	fmt.Printf("  SCHEMA.md  — field reference for LLM maintenance\n")
 }
 
 func cmdFind(args []string) {

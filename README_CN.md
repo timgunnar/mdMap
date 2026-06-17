@@ -42,11 +42,11 @@ go install github.com/timgunnar/mdMap@latest
 mdmap sync ./docs
 ```
 
-`sync` 扫描目录结构，写入 `mdMap.json` + `SCHEMA.md`。不打开任何 md 文件——只列出文件名。所有语义字段——每篇文档讲什么、什么时候读、什么时候更新——留空。Agent 在实际工作中遇到文档时再填充。
+`sync` 扫描目录结构，写入 `mdMap.json`。不打开任何 md 文件——只列出文件名。所有语义字段——每篇文档讲什么、什么时候读、什么时候更新——留空。Agent 在实际工作中遇到文档时再填充。
 
 ```bash
 # 让 LLM 丰富索引：
-# "读 SCHEMA.md。对 mdMap.json 中字段为空的每篇文档，
+# "读这份 skill 文档顶部的 schema 章节。对 mdMap.json 中字段为空的每篇文档，
 #  读取全文，提取 type/summary/triggers/links，写回。"
 
 # 之后，你再也不扫目录。
@@ -66,7 +66,7 @@ mdmap find --type checklist --tag "发布"          # 过滤搜索
 
 **LLM 过一遍，之后全是代码。** Agent 在工作中自然地遇到文档时，评估并更新语义字段。之后所有查询跑编译好的 Go 代码——O(1) 查找，零 token，零猜测。`validate` 跑四项确定性检查（孤儿检测、断裂链接、循环检测、陈旧引用），零 LLM 参与。
 
-**你的术语，不是我们的。** 不写死文档类型。不限制状态值。软件项目可以标 `checklist`、`architecture`、`api_spec`。写小说的用 `character_profile`、`chapter_outline`、`world_setting`。mdMap 从 SCHEMA.md 学会你的词汇，然后保持一致。
+**你的术语，不是我们的。** 不写死文档类型。不限制状态值。软件项目可以标 `checklist`、`architecture`、`api_spec`。写小说的用 `character_profile`、`chapter_outline`、`world_setting`。mdMap 从这份 skill 文档的 schema 章节学会你的词汇，然后保持一致。
 
 **双轨制。** mdMap 是地图，不是文件阅读的替代品。Agent 始终直接读文件。mdMap 只告诉你该读哪一个。文件重命名？重跑 `mdmap sync` 一键同步。
 
@@ -84,7 +84,7 @@ mdmap find --type checklist --tag "发布"          # 过滤搜索
 
 | 命令 | 做什么 |
 |:--|:--|
-| `sync <dir>` | 同步地图与地形，创建 mdMap.json + SCHEMA.md（已有标注保留） |
+| `sync <dir>` | 同步地图与地形，创建 mdMap.json（已有标注保留） |
 | `find <path>` | 精确查找（O(1)） |
 | `find --search <文本>` | 语义字段模糊匹配（标题/摘要/定位） |
 | `find --trigger <文本>` | "这个任务该读什么？" |
